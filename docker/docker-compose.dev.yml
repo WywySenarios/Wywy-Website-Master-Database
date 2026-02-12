@@ -1,0 +1,133 @@
+services:
+  wywywebsite_sql-receptionist:
+    container_name: wywywebsite_sql-receptionist-dev-server
+    tty: true
+    # image: gcc:latest
+    working_dir: /apps/sql-receptionist
+    build:
+      context: ../
+      dockerfile: apps/sql-receptionist/Dockerfile.dev
+      # target: builder
+    env_file:
+      - path: ${UNIVERSAL_CONFIG_DIR}/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env.dev
+        required: true
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./../apps/sql-receptionist
+          target: ./apps/sql-receptionist
+          initial_sync: true
+        - action: sync+restart
+          path: ${UNIVERSAL_CONFIG_DIR}/config.yml
+          target: /config.yml
+          initial_sync: true
+    volumes:
+      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
+    secrets:
+      - admin
+    ports:
+      - 2523:2523
+    depends_on:
+      wywywebsite_database:
+        condition: service_healthy
+    # compile and run the application.
+    # Do not close the container on error.
+    command: bash -c "make clean && make && exec ./app || echo The SQL Receptionist is now sleeping... && sleep 3600"
+
+  wywywebsite_create_tables:
+    container_name: wywywebsite_create_tables
+    tty: true
+    working_dir: /apps/create_tables
+    build:
+      context: ../
+      dockerfile: apps/create_tables/Dockerfile
+      args:
+        CONFIG_PATH: ${UNIVERSAL_CONFIG_DIR}/config.yml
+    env_file:
+      - path: ${UNIVERSAL_CONFIG_DIR}/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env.dev
+        required: true
+    develop:
+      watch:
+        - action: sync+restart
+          path: ${UNIVERSAL_CONFIG_DIR}/config.yml
+          target: /apps/create_tables/config.yml
+          initial_sync: true
+        - action: sync+restart
+          path: ./../apps/create_tables
+          target: ./apps/create_tables
+          initial_sync: true
+    volumes:
+      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/apps/create_tables/config.yml
+    depends_on:
+      wywywebsite_database:
+        condition: service_healthy
+    command: python3 create_tables.py
+
+  # @TODO secrets for db authentication
+  wywywebsite_database:
+    container_name: wywywebsite_postgres
+    build:
+      context: ../
+      dockerfile: apps/postgres/Dockerfile
+      target: db
+    restart: always
+    env_file:
+      - path: ${UNIVERSAL_CONFIG_DIR}/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env.dev
+        required: true
+    environment:
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_USER: ${DATABASE_USERNAME}
+      PGDATA: /var/lib/postgresql/data
+    ports:
+      - ${DATABASE_PORT}:${DATABASE_PORT}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-U",
+          "${DATABASE_USERNAME}",
+          "-p",
+          "${DATABASE_PORT}",
+        ]
+      interval: 5m
+      timeout: 5s
+      start_period: 3s
+      retries: 10
+    volumes:
+      - ${DATA_DIR}/website/postgres:/var/lib/postgresql/data
+      - ${UNIVERSAL_CONFIG_DIR}/website/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ${UNIVERSAL_CONFIG_DIR}/website/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    shm_size: 128mb
+    secrets:
+      - ssh_private_key
+      - ssh_backup_public_key
+    command: ./entrypoint.sh
+
+volumes:
+  # postgres-db:
+  astro-node_modules:
+
+secrets:
+  admin:
+    file: ${SECRETS_DIR}/admin.txt
+  ssh_private_key:
+    file: ${SECRETS_DIR}/id_ed25519
+  ssh_public_key:
+    file: ${SECRETS_DIR}/id_ed25519.pub
+  ssh_backup_public_key:
+    file: ${SECRETS_DIR}/backup/id_ed25519.pub

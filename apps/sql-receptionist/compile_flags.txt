@@ -1,0 +1,7 @@
+-I/usr/include
+-I/usr/local/include
+-I/usr/include/postgresql
+-I/usr/include
+-Iinclude
+-lcyaml
+-std=c11

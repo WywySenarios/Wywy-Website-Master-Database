@@ -1,0 +1,10 @@
+**/__pycache__/
+
+## ignore python virtual environment & packages
+.venv
+
+## ignore VS code folder :P
+.vscode
+
+# C build artifacts
+*.out
