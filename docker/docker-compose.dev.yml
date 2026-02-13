@@ -1,6 +1,6 @@
 services:
-  wywy_website-sql_receptionist:
-    container_name: wywy_website-sql_receptionist
+  wywy_website_master_database-sql_receptionist:
+    container_name: wywy_website_master_database-sql_receptionist
     tty: true
     # image: gcc:latest
     working_dir: /apps/sql-receptionist
@@ -34,7 +34,7 @@ services:
     ports:
       - 2523:2523
     depends_on:
-      wywy_website-database:
+      wywy_website_master_database-postgres:
         condition: service_healthy
     # compile and run the application.
     # Do not close the container on error.
@@ -71,13 +71,13 @@ services:
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/apps/create_tables/config.yml
     depends_on:
-      wywy_website-database:
+      wywy_website_master_database-postgres:
         condition: service_healthy
     command: python3 create_tables.py
 
   # @TODO secrets for db authentication
-  wywy_website-database:
-    container_name: wywy_website-postgres
+  wywy_website_master_database-postgres:
+    container_name: wywy_website_master_database-postgres
     build:
       context: ../
       dockerfile: apps/postgres/Dockerfile
