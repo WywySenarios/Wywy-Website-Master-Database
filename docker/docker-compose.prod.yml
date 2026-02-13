@@ -1,6 +1,6 @@
 services:
-  wywywebsite_sql-receptionist:
-    container_name: wywywebsite_sql-receptionist
+  wywy_website_master_database-sql_receptionist:
+    container_name: wywy_website_master_database-sql_receptionist
     tty: true
     # image: gcc:latest
     working_dir: /apps/sql-receptionist
@@ -16,19 +16,19 @@ services:
     secrets:
       - admin
     networks:
-      - wywywebsite_cloudflared
-      - wywywebsite_database
+      - wywy_website_master_database-cloudflared
+      - wywy_website_master_database-database
     ports:
       - 2523:2523
     depends_on:
-      wywywebsite_database:
+      wywy_website_master_database-database:
         condition: service_healthy
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
     command: ./app
 
-  wywywebsite_create_tables:
-    container_name: wywywebsite_create_tables
+  wywy_website_master_database-create_tables:
+    container_name: wywy_website_master_database-create_tables
     tty: true
     working_dir: /apps/create_tables
     build:
@@ -42,33 +42,34 @@ services:
       - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
         required: true
     depends_on:
-      wywywebsite_database:
+      wywy_website_master_database-database:
         condition: service_healthy
     networks:
-      - wywywebsite_database
+      - wywy_website_master_database-database
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/apps/create_tables/config.yml
     command: python3 create_tables.py
 
-  wywywebsite_cloudflared:
+  wywy_website_master_database-cloudflared:
+    container_name: wywy_website_master_database-cloudflared
     working_dir: /apps/cloudflared
     build:
       context: ../
       dockerfile: apps/cloudflared/Dockerfile
-    container_name: wywywebsite_cloudflared
+    container_name: wywy_website_master_database-cloudflared
     environment:
       TZ: America/Toronto
-      TUNNEL_TOKEN_FILE: /run/secrets/wywywebsite-cloudflared-cloudflare
+      TUNNEL_TOKEN_FILE: /run/secrets/cloudflared_token
     entrypoint: /entrypoint.sh
     restart: unless-stopped
     secrets:
-      - wywywebsite-cloudflared-cloudflare
+      - cloudflared_token
     networks:
-      - wywywebsite_cloudflared
+      - wywy_website_master_database-cloudflared
 
   # @TODO secrets for db authentication
-  wywywebsite_database:
-    container_name: wywywebsite_postgres
+  wywy_website_master_database-database:
+    container_name: wywy_website_master_database-database
     build:
       context: ../
       dockerfile: apps/postgres/Dockerfile
@@ -88,7 +89,7 @@ services:
     ports:
       - ${DATABASE_PORT}:${DATABASE_PORT}
     networks:
-      - wywywebsite_database
+      - wywy_website_master_database-database
     healthcheck:
       test:
         [
@@ -116,14 +117,14 @@ services:
     command: ./entrypoint.sh
 
 networks:
-  wywywebsite_cloudflared:
-    name: wywywebsite_cloudflared
-  wywywebsite_database:
-    name: wywywebsite_database
+  wywy_website_master_database-cloudflared:
+    name: wywy_website_master_database-cloudflared
+  wywy_website_master_database-database:
+    name: wywy_website_master_database-database
     driver: bridge
 
 secrets:
-  wywywebsite-cloudflared-cloudflare:
+  cloudflared_token:
     file: ${SECRETS_DIR}/website/cloudflared-cloudflare-token.txt
   admin:
     file: ${SECRETS_DIR}/admin.txt
