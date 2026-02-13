@@ -16,7 +16,8 @@ WAL_FILE="$2"
 
 scp -i "/tmp/Wywy-Website/id_ed25519" \
   -o BatchMode=yes \
-  -o StrictHostKeyChecking=accept-new \
+  -o UserKnownHostsFile=/tmp/Wywy-Website/backup/host \
+  -o StrictHostKeyChecking=yes \
   "$WAL_PATH" \
   "$BACKUP_USER@$BACKUP_HOST:/var/lib/Wywy-Website/backup/postgres_WALs/$WAL_FILE"
 
