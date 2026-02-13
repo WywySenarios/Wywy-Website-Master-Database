@@ -11,7 +11,7 @@ services:
     env_file:
       - path: ${UNIVERSAL_CONFIG_DIR}/.env
         required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
         required: true
     secrets:
       - admin
@@ -39,7 +39,7 @@ services:
     env_file:
       - path: ${UNIVERSAL_CONFIG_DIR}/.env
         required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
         required: true
     depends_on:
       wywy_website_master_database-database:
@@ -80,7 +80,7 @@ services:
         required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/backup/.env
         required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
         required: true
     environment:
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
@@ -105,9 +105,9 @@ services:
       start_period: 3s
       retries: 10
     volumes:
-      - ${DATA_DIR}/website/postgres:/var/lib/postgresql/data
-      - ${UNIVERSAL_CONFIG_DIR}/website/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      - ${UNIVERSAL_CONFIG_DIR}/website/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ${DATA_DIR}/master-database/postgres:/var/lib/postgresql/data
+      - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     shm_size: 128mb
@@ -125,7 +125,7 @@ networks:
 
 secrets:
   cloudflared_token:
-    file: ${SECRETS_DIR}/website/cloudflared-cloudflare-token.txt
+    file: ${SECRETS_DIR}/master-database/cloudflared-cloudflare-token.txt
   admin:
     file: ${SECRETS_DIR}/admin.txt
   ssh_private_key:

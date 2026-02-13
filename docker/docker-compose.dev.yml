@@ -13,9 +13,9 @@ services:
         required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/.env.dev
         required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
         required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env.dev
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env.dev
         required: true
     develop:
       watch:
@@ -54,9 +54,9 @@ services:
         required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/.env.dev
         required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
         required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env.dev
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env.dev
         required: true
     develop:
       watch:
@@ -92,9 +92,9 @@ services:
         required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/backup/.env.dev
         required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
         required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/website/.env.dev
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env.dev
         required: true
     environment:
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
@@ -117,9 +117,9 @@ services:
       start_period: 3s
       retries: 10
     volumes:
-      - ${DATA_DIR}/website/postgres:/var/lib/postgresql/data
-      - ${UNIVERSAL_CONFIG_DIR}/website/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      - ${UNIVERSAL_CONFIG_DIR}/website/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ${DATA_DIR}/master-database/postgres:/var/lib/postgresql/data
+      - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     shm_size: 128mb
