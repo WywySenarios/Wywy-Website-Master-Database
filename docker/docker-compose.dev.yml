@@ -77,7 +77,7 @@ services:
 
   # @TODO secrets for db authentication
   wywy_website-database:
-    container_name: wywywebsite_postgres
+    container_name: wywy_website-postgres
     build:
       context: ../
       dockerfile: apps/postgres/Dockerfile
