@@ -11,8 +11,6 @@ services:
     env_file:
       - path: ${UNIVERSAL_CONFIG_DIR}/.env
         required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/.env.prod
-        required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
         required: true
     secrets:
@@ -40,8 +38,6 @@ services:
         CONFIG_PATH: ${UNIVERSAL_CONFIG_DIR}/config.yml
     env_file:
       - path: ${UNIVERSAL_CONFIG_DIR}/.env
-        required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/.env.prod
         required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
         required: true
@@ -81,7 +77,7 @@ services:
     env_file:
       - path: ${UNIVERSAL_CONFIG_DIR}/.env
         required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/.env.prod
+      - path: ${UNIVERSAL_CONFIG_DIR}/backup/.env
         required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/website/.env
         required: true
