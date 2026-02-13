@@ -12,4 +12,5 @@ chown postgres:postgres /tmp/Wywy-Website/backup/ssh_host_ed25519_key.pub
 
 echo "$BACKUP_HOST $(cat /tmp/Wywy-Website/backup/ssh_host_ed25519_key.pub)" > /root/.ssh/known_hosts
 
-exec su postgres -c "postgres -D /var/lib/postgresql/data -p $DATABASE_PORT -c config_file=/etc/postgresql/postgresql.conf"
+exec gosu postgres postgres -D $PGDATA \
+    -c "config_file=/etc/postgresql/postgresql.conf"
