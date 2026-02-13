@@ -19,7 +19,16 @@ chmod 700 $PGDATA
 if [ ! -s "$PGDATA/PG_VERSION" ]; then
     echo "Database not initialized. Running initdb..."
 
-    gosu postgres initdb -D "$PGDATA"
+    echo "$POSTGRES_PASSWORD" > /tmp/POSTGRES_PASSWORD
+    chown postgres:postgres /tmp/POSTGRES_PASSWORD
+    chmod 600 /tmp/POSTGRES_PASSWORD
+
+    gosu postgres initdb \
+        -D "$PGDATA" \
+        --username="$POSTGRES_USER" \
+        --pwfile="/tmp/POSTGRES_PASSWORD"
+
+    rm /tmp/POSTGRES_PASSWORD
 fi
 
 # Repopulate configuration
