@@ -56,7 +56,6 @@ services:
     build:
       context: ../
       dockerfile: apps/cloudflared/Dockerfile
-    container_name: wywy_website_master_database-cloudflared
     environment:
       TZ: America/Toronto
       TUNNEL_TOKEN_FILE: /run/secrets/cloudflared_token
