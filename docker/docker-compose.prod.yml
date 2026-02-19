@@ -17,11 +17,11 @@ services:
       - admin
     networks:
       - wywy_website_master_database-cloudflared
-      - wywy_website_master_database-database
+      - wywy_website_master_database-postgres
     ports:
       - 2523:2523
     depends_on:
-      wywy_website_master_database-database:
+      wywy_website_master_database-postgres:
         condition: service_healthy
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
@@ -42,10 +42,10 @@ services:
       - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
         required: true
     depends_on:
-      wywy_website_master_database-database:
+      wywy_website_master_database-postgres:
         condition: service_healthy
     networks:
-      - wywy_website_master_database-database
+      - wywy_website_master_database-postgres
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/apps/create_tables/config.yml
     command: python3 create_tables.py
@@ -67,8 +67,8 @@ services:
       - wywy_website_master_database-cloudflared
 
   # @TODO secrets for db authentication
-  wywy_website_master_database-database:
-    container_name: wywy_website_master_database-database
+  wywy_website_master_database-postgres:
+    container_name: wywy_website_master_database-postgres
     build:
       context: ../
       dockerfile: apps/postgres/Dockerfile
@@ -88,7 +88,7 @@ services:
     ports:
       - ${DATABASE_PORT}:${DATABASE_PORT}
     networks:
-      - wywy_website_master_database-database
+      - wywy_website_master_database-postgres
     healthcheck:
       test:
         [
@@ -118,8 +118,8 @@ services:
 networks:
   wywy_website_master_database-cloudflared:
     name: wywy_website_master_database-cloudflared
-  wywy_website_master_database-database:
-    name: wywy_website_master_database-database
+  wywy_website_master_database-postgres:
+    name: wywy_website_master_database-postgres
     driver: bridge
 
 secrets:
