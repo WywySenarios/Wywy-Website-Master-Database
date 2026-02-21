@@ -14,7 +14,8 @@ WORKDIR apps/postgres
 USER root
 
 RUN apt-get update && \
-    apt-get install -y openssh-client && \
+    apt-get install -y openssh-client \
+    postgis && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --chown=postgres:postgres apps/postgres/backup.sh /backup.sh
