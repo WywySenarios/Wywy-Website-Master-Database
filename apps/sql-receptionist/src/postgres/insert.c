@@ -2,11 +2,12 @@
 #define HEADER_CONFIG
 #include "config.h"
 #endif
+#include "postgres/schema.h"
 #include "utils/format_string.h"
-#include "utils/json/datatype_validation.h"
 #include "utils/json/json_conversion.h"
 #include "utils/regex_item.h"
 #include <jansson.h>
+#include <regex.h>
 #include <string.h>
 
 /**
@@ -43,25 +44,44 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
 
   // check for conformance
   json_object_foreach(entry, key, value) {
-    bool valid = false;
+    // whether or not the value has passed validation.
+    bool validated = false;
     value_string = json_to_string(value);
 
     column_name_size = strlen(key) + 1;
 
-    // check for the case in which the JSON key relates to comments instead
-    // of regular columns
-    int is_comments_column = regex_check("_comments$", 1, REG_EXTENDED, 0, key);
+    // column type & suffix related variables. These need not be freed.
+    enum column_type column_type = DATA;
+    regex_t suffix_preg;
+    regmatch_t suffix_matches[1 + 1];
 
-    switch (is_comments_column) {
-    case 0:
-      break;
-    case 1:
-      column_name_size -= strlen("_comments");
-      break;
-    default:
+    // check if the column is directly inside the schema or not.
+    if (regcomp(&suffix_preg, "_comments|_latlong_accuracy|_altitude_accuracy$",
+                REG_EXTENDED) != 0) {
       status = -1;
       goto construct_validate_query_end;
     }
+
+    // regular column (one that's in the schema)
+    if (regexec(&suffix_preg, key, 2, suffix_matches, 0) == REG_NOMATCH) {
+      column_name_size = strlen(key) + 1;
+      // special column (one that's not in the schema)
+    } else {
+      column_name_size = suffix_matches[1].rm_so;
+      const char *suffix = key + suffix_matches[1].rm_so;
+
+      if (strcmp(suffix, "_comments") == 0) {
+        column_type = COMMENTS;
+      } else if (strcmp(suffix, "_latlong_accuracy") == 0) {
+        column_type = LATLONG_ACCURACY;
+      } else if (strcmp(suffix, "_altitude_accuracy") == 0) {
+        column_type = ALTITUDE_ACCURACY;
+      } else {
+        status = -1;
+        goto construct_validate_query_end;
+      }
+    }
+
     column_name = malloc(column_name_size);
 
     // check for malloc failures
@@ -81,10 +101,10 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
       // @TODO make sure postgres doesn't tweak out over incorrect next keys
       switch (regex_check("^[0-9]+$", 0, REG_EXTENDED, 0, value_string)) {
       case 0:
-        valid = false;
+        status = 0;
         break;
       case 1:
-        valid = true;
+        validated = true;
         break;
       default:
         status = -1;
@@ -95,10 +115,10 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
       // this.
       switch (regex_check("^[0-9]+$", 0, REG_EXTENDED, 0, value_string)) {
       case 0:
-        valid = false;
+        status = 0;
         break;
       case 1:
-        valid = true;
+        validated = true;
         break;
       default:
         status = -1;
@@ -109,44 +129,16 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
         // find which entry in the schema matches
 
         if (str_cci_cmp(column_name, schema[i].name) == 0) {
-          // check if the input is a comment and the column does not have
-          // comments.
-          if (is_comments_column) {
-            if (schema[i].comments == false) {
-              if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
-                  strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"),
-                         "TRUE") == 0)
-                printf("Column %s does not have commenting enabled.\n",
-                       schema[i].name);
-              break;
-            }
-
-            // comments MUST have text
-            if (check_string(value) == 0) {
-              if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
-                  strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"),
-                         "TRUE") == 0)
-                printf("The comment for column %s was empty.\n",
-                       schema[i].name);
-              break;
-            }
-          } else {
-            if (!check_column(value, &schema[i])) {
-              if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
-                  strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"),
-                         "TRUE") == 0)
-                printf("Invalid datatype for column %s.\n", schema[i].name);
-              break;
-            }
-          }
-
-          valid = true;
+          // validate against the column schema
+          status = validate_column(value, schema[i], column_type);
+          if (!status)
+            goto construct_validate_query_end;
           break;
         }
       }
 
-    // also remember to catch when the key is not inside the table's schema
-    if (!valid) {
+    // if the value does not have a related column,
+    if (!validated) {
       status = 0;
       goto construct_validate_query_end;
     }
