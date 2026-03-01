@@ -131,6 +131,7 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
         if (str_cci_cmp(column_name, schema[i].name) == 0) {
           // validate against the column schema
           status = validate_column(value, schema[i], column_type);
+          validated = true;
           if (!status)
             goto construct_validate_query_end;
           break;
