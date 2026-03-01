@@ -116,11 +116,12 @@ int check_timestamplike(const json_t *json) {
   }
 }
 int check_st_point(const json_t *json) {
-  return regex_check(
-      "^POINT(?:\\s+(?:Z|M|ZM))?\\s*\\(\\s*(?:EMPTY|[-+]?\\d*\\.?\\d+(?"
-      ":[eE][-+]?\\d+)?\\s+[-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?(?:\\s+[-"
-      "+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?){0,2})\\s*\\)$",
-      2, REG_EXTENDED, 0, json_string_value(json));
+
+  if (!regex_check("^'POINT(?: Z)? \\((-?\\d+(?:\\.\\d+)?) "
+                   "(-?\\d+(?:\\.\\d+)?)(?: (-?\\d+(?:\\.\\d+)?))?\\)'$",
+                   2, REG_EXTENDED, 0, json_string_value(json)))
+    return 0;
+  return 1;
 }
 
 int validate_column(const json_t *item, struct data_column column_schema,
