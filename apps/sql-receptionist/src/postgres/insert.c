@@ -56,7 +56,8 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
     regmatch_t suffix_matches[1 + 1];
 
     // check if the column is directly inside the schema or not.
-    if (regcomp(&suffix_preg, "_comments|_latlong_accuracy|_altitude_accuracy$",
+    if (regcomp(&suffix_preg,
+                "(_comments|_latlong_accuracy|_altitude_accuracy)$",
                 REG_EXTENDED) != 0) {
       status = -1;
       goto construct_validate_query_end;
