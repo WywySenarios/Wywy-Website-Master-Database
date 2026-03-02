@@ -44,6 +44,12 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
 
   // check for conformance
   json_object_foreach(entry, key, value) {
+    // ignore keys with null values. This allows child key existence to be
+    // detected while also preventing the need for extra NULL checks down the
+    // line.
+    if (json_is_null(value))
+      continue;
+
     // whether or not the value has passed validation.
     bool validated = false;
     value_string = json_to_string(value);
@@ -172,6 +178,9 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
 
   // build the query
   json_object_foreach(entry, key, value) {
+    if (json_is_null(value))
+      continue;
+
     // skip ID column (rely on auto-increment)
     if (strcmp(key, "id") == 0)
       continue;
