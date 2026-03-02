@@ -16,7 +16,6 @@
 #include "server/responses.h"
 #include "utils/format_string.h"
 #include "utils/http.h"
-#include "utils/json/datatype_validation.h"
 #include "utils/regex_item.h"
 #include "utils/regex_iterator.h"
 #include <arpa/inet.h>

@@ -1,5 +1,12 @@
 #include <stdbool.h>
 
+enum column_type {
+  DATA,
+  COMMENTS,
+  LATLONG_ACCURACY,
+  ALTITUDE_ACCURACY,
+};
+
 struct data_column {
   const char *name;                  // @todo validation
   const char *datatype;              // @todo validation
