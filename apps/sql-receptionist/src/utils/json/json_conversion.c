@@ -33,6 +33,11 @@ char *json_to_string(const json_t *value) {
     output = malloc(6);
     snprintf(output, output_size, "false");
     return output;
+  case JSON_NULL:
+    output_size = 5;
+    output = malloc(5);
+    memcpy(output, "NULL", 5);
+    return output;
   default:
     return NULL;
   }
