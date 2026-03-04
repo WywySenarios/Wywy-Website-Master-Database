@@ -127,8 +127,9 @@ int check_st_point(const json_t *json) {
   regex_t preg;
 
   if (regcomp(&preg,
-              "^'POINT \\((-?\\d+(?:\\.\\d+)?) (-?\\d+(?:\\.\\d+)?)\\)'$",
+              "^'POINT ?\\((-?[0-9]+(\\.[0-9]+)?) (-?[0-9]+(\\.[0-9]+)?)\\)'$",
               REG_EXTENDED) != 0) {
+    printf("asdf\n");
     return -1;
   }
 
