@@ -127,25 +127,24 @@ int check_st_point(const json_t *json) {
   regex_t preg;
 
   if (regcomp(&preg,
-              "^'POINT( Z)? ?\\((-?[0-9]+(\\.[0-9]+)?) "
-              "(-?[0-9]+(\\.[0-9]+)?)( (-?[0-9]+(\\.[0-9]+)?))?\\)'$",
+              "^'POINT \\((-?\\d+(?:\\.\\d+)?) (-?\\d+(?:\\.\\d+)?)\\)'$",
               REG_EXTENDED) != 0) {
     return -1;
   }
 
-  regmatch_t matches[9];
+  regmatch_t matches[3];
 
   const char *value = json_string_value(json);
 
-  if (regexec(&preg, value, 9, matches, 0) == REG_NOMATCH) {
+  if (regexec(&preg, value, 3, matches, 0) == REG_NOMATCH) {
     printf("lkjhadsdf\n");
     return 0;
   }
 
   // check X coordinate value
   char *endptr = NULL;
-  double x = strtod(value + matches[2].rm_so, &endptr);
-  double y = strtod(value + matches[4].rm_so, &endptr);
+  double x = strtod(value + matches[1].rm_so, &endptr);
+  double y = strtod(value + matches[2].rm_so, &endptr);
 
   printf("%f %f\n", x, y);
 
@@ -155,14 +154,6 @@ int check_st_point(const json_t *json) {
 
   if (y < -90 || 90 < y) {
     return 0;
-  }
-
-  // optionally check Z coordinate
-  if (regmatch_has_match(matches, 7)) {
-    double z = strtod(value + matches[7].rm_so, &endptr);
-
-    if (z > 9000 || -1000 > z)
-      return 0;
   }
 
   return 1;
