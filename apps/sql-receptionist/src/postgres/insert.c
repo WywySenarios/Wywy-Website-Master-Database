@@ -63,7 +63,7 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
 
     // check if the column is directly inside the schema or not.
     if (regcomp(&suffix_preg,
-                "(_comments|_latlong_accuracy|_altitude_accuracy)$",
+                "(_comments|_latlong_accuracy|_altitude_accuracy|_altitude)$",
                 REG_EXTENDED) != 0) {
       status = -1;
       goto construct_validate_query_end;
@@ -83,7 +83,10 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
         column_type = LATLONG_ACCURACY;
       } else if (strcmp(suffix, "_altitude_accuracy") == 0) {
         column_type = ALTITUDE_ACCURACY;
+      } else if (strcmp(suffix, "altitude") == 0) {
+        column_type = ALTITUDE;
       } else {
+        fprintf(stderr, "CRITICAL: Failed to trap column suffix.\n");
         status = -1;
         goto construct_validate_query_end;
       }

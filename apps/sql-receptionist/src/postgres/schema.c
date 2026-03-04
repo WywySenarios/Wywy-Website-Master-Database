@@ -235,6 +235,27 @@ int validate_column(const json_t *item, struct data_column column_schema,
       return 0;
     }
     return 1;
+  case ALTITUDE: // innocent until proven guilty
+    // the related column should be a geodetic point.
+    if (strcmp(column_schema.datatype, "geodetic point") != 0) {
+      if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
+          strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
+        printf("Column %s is not a geodetic point and therefore cannot have an "
+               "altitude.\n",
+               column_schema.name);
+      return 0;
+    }
+
+    // altitude should be a double precision.
+    if (!json_is_real(item)) {
+      if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
+          strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
+        printf("Non-conformat data. Expected a double precision for column "
+               "%s_altitude.\n",
+               column_schema.name);
+      return 0;
+    }
+    return 1;
   case LATLONG_ACCURACY:
   case ALTITUDE_ACCURACY:
     // the related column should be a geodetic point.
