@@ -4,6 +4,7 @@ enum column_type {
   DATA,
   COMMENTS,
   LATLONG_ACCURACY,
+  ALTITUDE,
   ALTITUDE_ACCURACY,
 };
 
