@@ -129,7 +129,6 @@ int check_st_point(const json_t *json) {
   if (regcomp(&preg,
               "^'POINT ?\\((-?[0-9]+(\\.[0-9]+)?) (-?[0-9]+(\\.[0-9]+)?)\\)'$",
               REG_EXTENDED) != 0) {
-    printf("asdf\n");
     return -1;
   }
 
@@ -138,7 +137,6 @@ int check_st_point(const json_t *json) {
   const char *value = json_string_value(json);
 
   if (regexec(&preg, value, 3, matches, 0) == REG_NOMATCH) {
-    printf("lkjhadsdf\n");
     return 0;
   }
 
@@ -146,8 +144,6 @@ int check_st_point(const json_t *json) {
   char *endptr = NULL;
   double x = strtod(value + matches[1].rm_so, &endptr);
   double y = strtod(value + matches[2].rm_so, &endptr);
-
-  printf("%f %f\n", x, y);
 
   if (x < -180 || 180 < x) {
     return 0;
