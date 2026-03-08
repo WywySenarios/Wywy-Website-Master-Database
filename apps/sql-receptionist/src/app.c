@@ -715,6 +715,7 @@ void *handle_client(void *arg) {
           free(value);
           goto end;
         }
+        regex_iterator_advance_cur(querystring_regex);
       }
 
       // are the mandatory request params valid? We need something to select and
