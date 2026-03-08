@@ -621,7 +621,7 @@ void *handle_client(void *arg) {
             valid = 1;
           } else {
             for (unsigned i = 0; i < table->schema_count; i++) {
-              if (strcmp(value, (*table).schema[i].name)) {
+              if (strcmp(value, (*table).schema[i].name) == 0) {
                 select = value;
                 valid = 1;
                 break;
