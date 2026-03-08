@@ -618,6 +618,7 @@ void *handle_client(void *arg) {
         if (strcmp(key, "SELECT") == 0) {
           if (strcmp(value, "*") == 0) {
             select = "*";
+            valid = 1;
           } else {
             for (unsigned i = 0; i < table->schema_count; i++) {
               if (strcmp(value, (*table).schema[i].name)) {
