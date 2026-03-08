@@ -330,6 +330,16 @@ void *handle_client(void *arg) {
 
   // START - check URL
 
+  // @todo handle memory?
+  // handle querystring
+  char *querystring = NULL;
+  char *path = url;
+  char *qmark = strchr(url, '?');
+  if (qmark) {
+    *qmark = '\0';           // terminate path at the first '?'
+    querystring = qmark + 1; // everything after is the querystring
+  }
+
   // look for as many url sections as possible
   for (int i = 0; i < MAX_URL_SECTIONS; i++) {
     if (regex_iterator_match(url_regex, 0) != 0)
@@ -502,16 +512,6 @@ void *handle_client(void *arg) {
     goto end;
   }
   // END - check URL
-
-  // @todo handle memory?
-  // handle querystring
-  char *querystring = NULL;
-  char *path = url;
-  char *qmark = strchr(url, '?');
-  if (qmark) {
-    *qmark = '\0';           // terminate path at the first '?'
-    querystring = qmark + 1; // everything after is the querystring
-  }
 
   // decide what to do
   // first ensure that the method is uppercase
