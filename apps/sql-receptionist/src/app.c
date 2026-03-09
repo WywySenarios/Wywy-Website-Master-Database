@@ -596,7 +596,7 @@ void *handle_client(void *arg) {
       regex_iterator_load_target(querystring_regex, querystring);
 
       // many of these need to be non-null:
-      char *select = NULL;
+      char *select = "*";
       char *order_by = NULL;
       char *min = NULL;
       int min_type = -1; // 1 for inclusive, 0 for exclusive
@@ -617,7 +617,6 @@ void *handle_client(void *arg) {
         // what type is it?
         if (strcmp(key, "SELECT") == 0) {
           if (strcmp(value, "*") == 0) {
-            select = "*";
             valid = 1;
           } else {
             for (unsigned i = 0; i < table->schema_count; i++) {
