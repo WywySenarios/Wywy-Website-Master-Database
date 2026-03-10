@@ -35,7 +35,9 @@ size_t select_query_size(struct select_options *options) {
   query_size +=
       options->schema_count -
       1; // since there are guarenteed to be more characters later, we don't
-         // need to worry about buffer overflow for that extra comma.
+  // need to worry about buffer overflow for that extra comma.
+
+  return query_size;
 }
 
 void construct_select_query(struct select_options *options, char *buffer,
@@ -86,7 +88,7 @@ void construct_select_query(struct select_options *options, char *buffer,
   // row offset
   if (options->row_offset) {
     // -- to get rid of the semi-colon currently written into the query.
-    ;
+
     n = snprintf(--cur, remaining_size, " OFFSET %d;", options->row_offset);
     if (n < 0 || errno == EILSEQ) {
       errno = EILSEQ;
