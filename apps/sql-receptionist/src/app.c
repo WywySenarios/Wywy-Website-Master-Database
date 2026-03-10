@@ -40,8 +40,8 @@
 #include <unistd.h>
 
 #define PORT 2523 // @todo make this configurable
-#define BUFFER_SIZE 104857600 - 1
-#define MAX_ENTRY_SIZE 1048576 - 1
+#define BUFFER_SIZE 1048576
+#define MAX_ENTRY_SIZE 104857
 #define AUTH_DB_NAME "auth" // @todo make this configurable
 #define MAX_URL_SECTIONS 4  // must be 2 or larger
 #define MAX_REGEX_MATCHES 25
