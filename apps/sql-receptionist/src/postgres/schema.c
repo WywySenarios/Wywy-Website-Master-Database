@@ -159,7 +159,7 @@ int check_st_point(const json_t *json) {
 int validate_column(const json_t *item, struct data_column column_schema,
                     enum column_type column_type) {
   switch (column_type) {
-  case DATA:
+  case DATA:;
     const char *datatype = column_schema.datatype;
     int output = -1;
     if (strcmp(datatype, "int") == 0 || strcmp(datatype, "integer") == 0) {
