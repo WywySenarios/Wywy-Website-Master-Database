@@ -2,6 +2,7 @@
 #define HEADER_CONFIG
 #include "config.h"
 #endif
+#include "libpq-fe.h"
 #include <stdlib.h>
 
 struct select_options {
@@ -52,3 +53,12 @@ extern size_t select_query_size(struct select_options *options);
  * @param buffer_size The maximum amount of characters the buffer can store.
  */
 extern void construct_select_query(struct select_options *options, char *buffer, size_t buffer_size);
+
+/**
+ * Serialize a SELECT query result into JSON. Guarentees buffer safety.
+ * Sets errno to ENOMEM when the buffer runs out of space.
+ * @param res The PGresult to serialize.
+ * @param buffer The buffer to write to.
+ * @param buffer_size The maxmimum amount of characters the buffer can store.
+ */
+extern void serialize_select_result(const PGresult *res, char *buffer, const size_t buffer_size);
