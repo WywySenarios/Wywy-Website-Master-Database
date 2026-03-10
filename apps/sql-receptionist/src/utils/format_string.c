@@ -77,3 +77,11 @@ int str_cci_cmp(const char *a, const char *b) {
   return (unsigned char)tolower((unsigned char)*a) -
          (unsigned char)tolower((unsigned char)*b);
 }
+
+int int_str_len(int integer) {
+  int count = 0;
+  do {
+    count++;
+  } while (integer %= 10 > 0);
+  return count;
+}
