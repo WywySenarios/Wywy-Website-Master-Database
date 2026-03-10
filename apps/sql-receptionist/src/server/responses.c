@@ -32,6 +32,36 @@ const char *get_status_code_name(int status_code) {
   }
 }
 
+size_t write_header(const int status_code, char *buffer,
+                    const size_t buffer_size) {
+  const char *status_code_name = get_status_code_name(status_code);
+
+  if (getenv("SQL_RECEPTIONIST_LOG_RESPONSES") &&
+      strcmp(getenv("SQL_RECEPTIONIST_LOG_RESPONSES"), "TRUE") == 0)
+    printf("Constructing %d %s headers.\n\n", status_code, status_code_name);
+
+  const char *connection;
+  switch (status_code) {
+  case 204:
+    connection = "Keep-Alive";
+    break;
+  default:
+    connection = "Close";
+    break;
+  }
+
+  return snprintf(buffer, buffer_size,
+                  "HTTP/1.1 %d %s\r\n"
+                  "Content-Type: text/plain\r\n"
+                  "Access-Control-Allow-Origin: %s\r\n"
+                  "Access-Control-Allow-Headers: Content-Type\r\n"
+                  "Access-Control-Allow-Credentials: true\r\n"
+                  "Connection: %s\r\n"
+                  "\r\n",
+                  status_code, status_code_name, getenv("MAIN_URL"),
+                  connection);
+}
+
 /**
  * Build a response, and set its body to the given string. Fails if the config
  * is missing or NULL.
