@@ -45,6 +45,7 @@ extern size_t select_query_size(struct select_options *options);
 /**
  * Construct a select query based on the given options. Guarentees buffer safety.
  * Sets errno to ENOMEM when the buffer runs out of space.
+ * Sets errno to EILSEQ if an snprintf call fails.
  * @TODO add filters
  * @param options The options for the select query. The value is not validated.
  * @param buffer The buffer to write to.

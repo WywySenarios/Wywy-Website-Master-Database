@@ -72,6 +72,10 @@ void construct_select_query(struct select_options *options, char *buffer,
   n = snprintf(cur, remaining_size, " FROM %s\nORDER BY %s %s\nLIMIT %d;",
                options->table_name, options->order_by_column,
                options->order_by_order, options->limit);
+  if (n < 0 || errno == EILSEQ) {
+    errno = EILSEQ;
+    return;
+  }
   cur += n;
   remaining_size -= n;
   if (remaining_size < 0) {
@@ -82,8 +86,13 @@ void construct_select_query(struct select_options *options, char *buffer,
   // row offset
   if (options->row_offset) {
     // -- to get rid of the semi-colon currently written into the query.
-    remaining_size -=
-        snprintf(--cur, remaining_size, " OFFSET %d;", options->row_offset);
+    ;
+    n = snprintf(--cur, remaining_size, " OFFSET %d;", options->row_offset);
+    if (n < 0 || errno == EILSEQ) {
+      errno = EILSEQ;
+      return;
+    }
+    remaining_size -= n;
     if (remaining_size < 0) {
       errno = ENOMEM;
       return;
