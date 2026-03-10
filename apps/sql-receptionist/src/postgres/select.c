@@ -10,11 +10,8 @@
 #include <string.h>
 #include <sys/types.h>
 
-extern char *construct_select_query(struct select_options *options) {
+size_t select_query_size(struct select_options *options) {
   // do not validate options.
-  const char *offset_segment = "";
-
-  // calculate expected size
   size_t query_size = strlen("SELECT  FROM \nORDER BY  \nLIMIT ;") +
                       1; // base shape + null terminator
 
@@ -39,54 +36,57 @@ extern char *construct_select_query(struct select_options *options) {
       options->schema_count -
       1; // since there are guarenteed to be more characters later, we don't
          // need to worry about buffer overflow for that extra comma.
+}
 
-  char *query = malloc(query_size);
-  char *cur = query;
+void construct_select_query(struct select_options *options, char *buffer,
+                            size_t buffer_size) {
+  // do not validate options.
+  char *cur = buffer;
   size_t n = 0;
+  size_t remaining_size = buffer_size;
 
   // construct query
   n = strlen("SELECT (");
-  memcpy(query, "SELECT (", n);
+  if (remaining_size < n) {
+    errno = ENOMEM;
+    return;
+  }
+  memcpy(cur, "SELECT (", n);
   cur += n;
+  remaining_size -= n;
 
   // columns
   for (int i = 0; i < options->schema_count; i++) {
     // add "[column_name],"
-    memcpy(cur, options->schema[i].name, strlen(options->schema[i].name));
+    n = strlen(options->schema[i].name);
+    if (remaining_size < n + 1) {
+      errno = ENOMEM;
+      return;
+    }
+    memcpy(cur, options->schema[i].name, n);
     *++cur = ',';
+    remaining_size -= n + 1;
   }
   *cur = ')'; // get rid of trailing comma & close the bracket
 
-  // write in the rest of the query
-  if ((query + query_size) - cur < 0) {
-    errno = EINVAL;
-    free(query);
-    return NULL;
+  n = snprintf(cur, remaining_size, " FROM %s\nORDER BY %s %s\nLIMIT %d;",
+               options->table_name, options->order_by_column,
+               options->order_by_order, options->limit);
+  cur += n;
+  remaining_size -= n;
+  if (remaining_size < 0) {
+    errno = ENOMEM;
+    return;
   }
-  size_t remaining_size = (query + query_size) - cur;
-
-  cur += snprintf(cur, remaining_size, " FROM %s\nORDER BY %s %s\nLIMIT %d;",
-                  options->table_name, options->order_by_column,
-                  options->order_by_order, options->limit);
 
   // row offset
   if (options->row_offset) {
-    if (cur > query) {
-      errno = EINVAL;
-      free(query);
-      return NULL;
-    }
-
-    if ((query + query_size) - cur < 0) {
-      errno = EINVAL;
-      free(query);
-      return NULL;
-    }
-    remaining_size = (query + query_size) - cur;
-
     // -- to get rid of the semi-colon currently written into the query.
-    snprintf(--cur, remaining_size, " OFFSET %d;", options->row_offset);
+    remaining_size -=
+        snprintf(--cur, remaining_size, " OFFSET %d;", options->row_offset);
+    if (remaining_size < 0) {
+      errno = ENOMEM;
+      return;
+    }
   }
-
-  return query;
 }

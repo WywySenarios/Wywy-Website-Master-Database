@@ -2,6 +2,7 @@
 #define HEADER_CONFIG
 #include "config.h"
 #endif
+#include <stdlib.h>
 
 struct select_options {
     /**
@@ -35,10 +36,18 @@ struct select_options {
 };
 
 /**
- * Construct a select query based on the given options.
- * This function sets errno to ENOMEM on memory allocation failure.
- * This function does not validate errno beforehand.
+ * Find the expected string size to store a select query.
  * @TODO add filters
  * @param options The options for the select query. The value is not validated.
  */
-extern char *construct_select_query(struct select_options *options);
+extern size_t select_query_size(struct select_options *options);
+
+/**
+ * Construct a select query based on the given options. Guarentees buffer safety.
+ * Sets errno to ENOMEM when the buffer runs out of space.
+ * @TODO add filters
+ * @param options The options for the select query. The value is not validated.
+ * @param buffer The buffer to write to.
+ * @param buffer_size The maximum amount of characters the buffer can store.
+ */
+extern void construct_select_query(struct select_options *options, char *buffer, size_t buffer_size);
