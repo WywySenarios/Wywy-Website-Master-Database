@@ -13,6 +13,7 @@
 #endif
 #include "postgres.h"
 #include "postgres/insert.h"
+#include "postgres/select.h"
 #include "server/responses.h"
 #include "utils/format_string.h"
 #include "utils/http.h"
@@ -22,6 +23,7 @@
 #include <asm-generic/socket.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <jansson.h>
 #include <libpq-fe.h>
@@ -104,88 +106,33 @@ void generic_select_query_and_respond(char *database_name, char *query,
                                       char **response, size_t *response_len) {
   ExecStatusType sql_query_status =
       sql_query(database_name, query, res, conn, global_config);
-  if (sql_query_status == PGRES_TUPLES_OK ||
-      sql_query_status == PGRES_COMMAND_OK) { // if the query is successful,
-    // convert the query information into JSON
-    char *output = malloc(BUFFER_SIZE);       // @todo be more specific
-    char *column_names = malloc(BUFFER_SIZE); // @todo be more specific
-    char *output_arrs = malloc(BUFFER_SIZE);  // @todo be more specific
-    // catch malloc failure
-    if (!output || !column_names || !output_arrs) {
-      build_response(500, response, response_len,
-                     "Something went wrong when fetching the query results.");
-      free(output);
-      free(column_names);
-      free(output_arrs);
-      return;
-    }
-
-    column_names[0] = '\0';
-    output_arrs[0] = '\0';
-
-    // add in the column names
-    for (int col = 0; col < PQnfields(*res); col++) {
-      strcat(column_names, "\"");
-      strcat(column_names, PQfname(*res, col));
-      strcat(column_names, "\",");
-    }
-    // remove trailing comma
-    column_names[strlen(column_names) - 1] = '\0';
-
-    // add in "[...]," for all the arrays
-    // @todo optimize
-    for (int row = 0; row < PQntuples(*res); row++) {
-      char *entry_arr = malloc(MAX_ENTRY_SIZE);
-      strcpy(entry_arr, "[");
-
-      for (int col = 0; col < PQnfields(*res); col++) {
-        if (!PQgetisnull(*res, row, col)) {
-          int requires_quotes = 0;
-          // @todo binary search optimization
-          switch (PQftype(*res, col)) {
-          case 25:
-          case 1082:
-          case 1083:
-          case 1114:
-            requires_quotes = 1;
-            strcat(entry_arr, "\"");
-            break;
-          default:
-            requires_quotes = 0;
-            break;
-          }
-
-          strcat(entry_arr, PQgetvalue(*res, row, col));
-          if (requires_quotes) {
-            strcat(entry_arr, "\"");
-          }
-        } else
-          strcat(entry_arr, "null");
-        strcat(entry_arr, ",");
-      }
-      // remove trailing comma
-      entry_arr[strlen(entry_arr) - 1] = ']';
-
-      strcat(entry_arr, ",");
-
-      strcat(output_arrs, entry_arr);
-      free(entry_arr);
-    }
-    // remove the trailing comma
-    output_arrs[strlen(output_arrs) - 1] = '\0';
-
-    snprintf(output, BUFFER_SIZE, "{\"columns\":[%s],\"data\":[%s]}",
-             column_names, output_arrs);
-    build_response(200, response, response_len, output);
-    free(column_names);
-    free(output_arrs);
-    free(output);
-  } else {
+  if (sql_query_status != PGRES_TUPLES_OK &&
+      sql_query_status != PGRES_COMMAND_OK) { // if the query is not successful,
     build_response_printf(500, response, response_len,
                           strlen(PQresStatus(sql_query_status)) + 2 +
                               strlen(PQerrorMessage(*conn)) + 1,
                           "%s: %s", PQresStatus(sql_query_status),
                           PQerrorMessage(*conn));
+  }
+
+  *response = malloc(BUFFER_SIZE);
+  *response_len = write_header(200, *response, BUFFER_SIZE) - 1;
+  if (*response_len + 1 >= BUFFER_SIZE) {
+    free(*response);
+    build_response_printf(500, response, response_len, strlen("No memory") + 1,
+                          "No memory.");
+    return;
+  }
+
+  serialize_select_result(*res, *response - 1, BUFFER_SIZE - *response_len);
+  if (errno) {
+    perror("SELECT query result serialization");
+    free(*response);
+    build_response_printf(500, response, response_len,
+                          strlen("Server-side serialization failed.") + 1,
+                          "Server-side serialization failed.");
+    errno = 0;
+    return;
   }
 }
 
