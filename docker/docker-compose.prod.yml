@@ -1,5 +1,3 @@
-version: 2026.03.1
-
 services:
   wywy_website_master_database-sql_receptionist:
     container_name: wywy_website_master_database-sql_receptionist
