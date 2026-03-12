@@ -17,7 +17,7 @@ def table_transform(
     """Applies a transformation to every table. The cursor does not have autocommit.
 
     Args:
-        transformation (Callable[[psycopg.Cursor, dict[str, tuple[TableType, List[DataColumn] | None]]], None]): The transformation to apply to every item inside the CONFIG. The transformation function takes in in the cursor and a dictionary with the database table name as the key and a tuple with length 2 containing the table type and the column schema if available. The targets are ordered as per the schema, and parent tables are added before the dependent tables are added (i.e. same add order as create_tables service)
+        transformation (Callable[[psycopg.Cursor, dict[str, tuple[TableType, List[DataColumn] | None]]], None]): The transformation to apply to every item inside the CONFIG. The transformation function takes in in the cursor and a dictionary with the database table name as the key and a tuple with length 2 containing the table type and the column schema if available.
     """
 
     for databaseSchema in CONFIG["data"]:
