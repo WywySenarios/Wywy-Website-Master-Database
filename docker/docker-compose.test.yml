@@ -1,3 +1,5 @@
+name: master-database
+
 services:
   wywy_website_master_database-test:
     container_name: wywy_website_master_database-test
