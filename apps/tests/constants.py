@@ -1,5 +1,5 @@
 from os import environ
-from typing import Literal, Any
+from typing import Literal
 from .types import Datatype, PostgresDatatype
 
 # Constants
