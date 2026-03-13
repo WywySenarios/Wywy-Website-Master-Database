@@ -14,22 +14,6 @@ RESERVED_TABLE_SUFFIXES = [
 ]
 RESERVED_COLUMN_NAMES = ["id", "user", "users", "primary_tag"]
 RESERVED_COLUMN_SUFFIXES = ["comments"]
-DUMMY_VALUES: dict[Datatype, Any] = {
-    "int": 23,
-    "integer": 23,
-    "float": 2.3,
-    "number": 2.3,
-    "str": "text",
-    "string": "text",
-    "text": "text",
-    "bool": True,
-    "boolean": True,
-    "date": "0001-01-01",
-    "time": "01:01:01",
-    "timestamp": "0001-01-01T01:01:01",
-    "enum": "enum",
-    "geodetic point": "POINT (1 1)",
-}
 PSQLDATATYPES: dict[Datatype, PostgresDatatype] = {
     "int": "integer",
     "integer": "integer",
