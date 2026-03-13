@@ -1,32 +1,34 @@
 from ..config import CONFIG
 from ..constants import CONN_CONFIG
 from ..utils import to_lower_snake_case
-from ..types import DataColumn, TableType
+from ..types import TableType, DescriptorInfo, TableInfo
 import psycopg
-from typing import Callable, List, TypeAlias
+from typing import Callable, TypeAlias
 
-TransformTargets: TypeAlias = dict[str, tuple[TableType, List[DataColumn] | None]]
+TransformTargets: TypeAlias = dict[
+    str, tuple[TableType, DescriptorInfo | TableInfo | None]
+]
 
 
 def table_transform(
     transformation: Callable[
-        [psycopg.Cursor, dict[str, tuple[TableType, List[DataColumn] | None]]],
+        [psycopg.Cursor, TransformTargets],
         None,
     ],
 ) -> None:
     """Applies a transformation to every table. The cursor does not have autocommit.
 
     Args:
-        transformation (Callable[[psycopg.Cursor, dict[str, tuple[TableType, List[DataColumn] | None]]], None]): The transformation to apply to every item inside the CONFIG. The transformation function takes in in the cursor and a dictionary with the database table name as the key and a tuple with length 2 containing the table type and the column schema if available.
+        transformation (Callable[[psycopg.Cursor, TransformTargets], None]): The transformation to apply to every item inside the CONFIG. The transformation function takes in in the cursor and a dictionary with the database table name as the key and a tuple with length 2 containing the table type and the full item schema if available.
     """
 
     for databaseSchema in CONFIG["data"]:
         with psycopg.connect(**CONN_CONFIG, dbname=databaseSchema["dbname"]) as conn:
             with conn.cursor() as cur:
-                targets: dict[str, tuple[TableType, List[DataColumn] | None]] = {}
+                targets: TransformTargets = {}
                 for tableSchema in databaseSchema["tables"]:
                     table_name: str = to_lower_snake_case(tableSchema["tableName"])
-                    targets[table_name] = ("data", tableSchema["schema"])
+                    targets[table_name] = ("data", tableSchema)
 
                     # main table
 
@@ -43,7 +45,7 @@ def table_transform(
                             f"{table_name}_{to_lower_snake_case(descriptorSchema['name'])}_descriptors"
                         ] = (
                             "descriptor",
-                            descriptorSchema["schema"],
+                            descriptorSchema,
                         )  # @TODO check if this table type name is correct
 
                 # call transformation
