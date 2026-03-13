@@ -28,9 +28,9 @@ def table_transform(
                 targets: TransformTargets = {}
                 for tableSchema in databaseSchema["tables"]:
                     table_name: str = to_lower_snake_case(tableSchema["tableName"])
-                    targets[table_name] = ("data", tableSchema)
 
                     # main table
+                    targets[table_name] = ("data", tableSchema)
 
                     # tagging tables
                     if tableSchema.get("tagging", False) is True:
@@ -39,7 +39,7 @@ def table_transform(
                         targets[f"{table_name}_tag_groups"] = ("tag_groups", None)
                         targets[f"{table_name}_tag_names"] = ("tag_names", None)
 
-                    # purge descriptors
+                    # descriptors
                     for descriptorSchema in tableSchema.get("descriptors", []):
                         targets[
                             f"{table_name}_{to_lower_snake_case(descriptorSchema['name'])}_descriptors"
