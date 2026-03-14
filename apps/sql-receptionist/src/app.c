@@ -124,7 +124,9 @@ void generic_select_query_and_respond(char *database_name, char *query,
     return;
   }
 
-  serialize_select_result(*res, *response - 1, BUFFER_SIZE - *response_len);
+  // + 1 because the response_len is a length, not a size
+  *response_len += serialize_select_result(*res, *response + *response_len + 1,
+                                           BUFFER_SIZE - *response_len);
   if (errno) {
     perror("SELECT query result serialization");
     free(*response);
