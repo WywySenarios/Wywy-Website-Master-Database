@@ -7,6 +7,7 @@ import re
 from os import environ
 from ..config import CONFIG
 from ..Wywy_Website_Types import DataColumn, EntryTableData, DescriptorInfo, TableInfo
+from ..constants import SQL_RECEPTIONIST_URL, SQL_RECEPTIONIST_AUTH_COOKIES
 from ..utils import to_lower_snake_case
 from ..database.purge import purge_database
 from ..database.populate import populate_database
@@ -173,9 +174,45 @@ class TestSelectEndpoints(unittest.TestCase):
     def test_select(self):
         """Test the SELECT data (main table & descriptors) endpoint for every table."""
 
+        # does the SELECT endpoint check the origin header?
+        self.assertEqual(requests.get(f"{SQL_RECEPTIONIST_URL}").status_code, 400)
+
         # is the SELECT endpoint secured with authentication?
         self.assertEqual(
-            requests.get(f"{environ["SQL_RECEPTIONIST_HOST"]}").status_code, 403
+            requests.get(
+                f"{SQL_RECEPTIONIST_URL}", headers={"Origin": environ["MAIN_URL"]}
+            ).status_code,
+            403,
+        )
+
+        # does the SELECT endpoint require a database?
+        self.assertEqual(
+            requests.get(
+                f"{SQL_RECEPTIONIST_URL}",
+                headers={"Origin": environ["MAIN_URL"]},
+                cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+            ).status_code,
+            400,
+        )
+
+        # does the SELECT endpoint require a table?
+        self.assertEqual(
+            requests.get(
+                f"{SQL_RECEPTIONIST_URL}/{to_lower_snake_case(CONFIG["data"][0]["dbname"])}",
+                headers={"Origin": environ["MAIN_URL"]},
+                cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+            ).status_code,
+            400,
+        )
+
+        # does the SELECT endpoint require querystring params?
+        self.assertEqual(
+            requests.get(
+                f"{SQL_RECEPTIONIST_URL}/{to_lower_snake_case(CONFIG["data"][0]["dbname"])}/{to_lower_snake_case(CONFIG["data"][0]["tables"][0]["tableName"])}",
+                headers={"Origin": environ["MAIN_URL"]},
+                cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+            ).status_code,
+            400,
         )
 
         # @TODO verify invalid URLs

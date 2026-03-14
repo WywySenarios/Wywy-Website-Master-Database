@@ -2,10 +2,15 @@ from os import environ
 from typing import Literal
 from .Wywy_Website_Types import Datatype, PostgresDatatype
 
+SQL_RECEPTIONIST_URL = f"http://{environ["SQL_RECEPTIONIST_HOST"]}:2523"
 SQL_RECEPTIONIST_ADMIN_USERNAME = "admin"
 f = open("/run/secrets/admin", "r")
 SQL_RECEPTIONIST_PASSWORD = f.read()
 f.close()
+SQL_RECEPTIONIST_AUTH_COOKIES = {
+    "username": "admin",
+    "password": SQL_RECEPTIONIST_PASSWORD,
+}
 
 # Constants
 RESERVED_DATABASE_NAMES = ["info"]
