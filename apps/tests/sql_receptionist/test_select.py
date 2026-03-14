@@ -222,10 +222,14 @@ class TestSelectEndpoints(unittest.TestCase):
             for table_schema in database_schema["tables"]:
                 table_name = to_lower_snake_case(table_schema["tableName"])
                 # @TODO read/write perms
+                # @TODO select param
+                # @TODO order_by
 
                 # main data
                 response = requests.get(
-                    f"{environ["SQL_RECEPTIONIST_HOST"]}/{database_name}/{table_name}"
+                    f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}?SELECT=*&ORDER_BY=ASC",
+                    headers={"Origin": environ["MAIN_URL"]},
+                    cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
                 )
                 assert_data_response(self, response, table_schema)
 
@@ -233,7 +237,9 @@ class TestSelectEndpoints(unittest.TestCase):
                 if "descriptors" in table_schema:
                     for descriptor_schema in table_schema["descriptors"]:
                         response = requests.get(
-                            f"{environ["SQL_RECEPTIONIST_HOST"]}/{database_name}/{table_name}/descriptors/{to_lower_snake_case(descriptor_schema["name"])}"
+                            f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/descriptors/{to_lower_snake_case(descriptor_schema["name"])}?SELECT=*&ORDER_BY=ASC",
+                            headers={"Origin": environ["MAIN_URL"]},
+                            cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
                         )
                         assert_data_response(self, response, descriptor_schema)
 
