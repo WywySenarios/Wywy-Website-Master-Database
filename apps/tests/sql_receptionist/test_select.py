@@ -23,7 +23,21 @@ def assert_data_response(
 
     test_object.assertEqual(response.status_code, 200, "Data fetch response not OK.")
 
-    data = response.json()
+    try:
+        data = response.json()
+    except requests.JSONDecodeError as e:
+        test_object.fail(
+            f"""
+Failed to decode JSON:
+--------exception--------
+{e}
+------response.text------
+{response.text}
+---repr(response.text)---
+{repr(response.text)}
+-------------------------
+            """
+        )
 
     test_object.assertIsInstance(data, dict, "Data fetch response is not a dictionary")
 
