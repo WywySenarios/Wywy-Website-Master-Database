@@ -7,9 +7,13 @@ def purge_transformation(cur: psycopg.Cursor, targets: TransformTargets):
     cur.execute(
         sql.SQL(
             """
-            TRUNCATE TABLE {table_names} CASCADE RESTART IDENTITY;
+            TRUNCATE TABLE {table_names} RESTART IDENTITY CASCADE;
             """
-        ).format(table_names=sql.SQL(", ").join(targets.keys()))
+        ).format(
+            table_names=sql.SQL(", ").join(
+                map(lambda x: sql.Identifier(x), targets.keys())
+            )
+        )
     )
 
 
