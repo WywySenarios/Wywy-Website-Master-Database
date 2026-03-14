@@ -26,7 +26,11 @@ def table_transform(
     """
 
     for databaseSchema in CONFIG["data"]:
-        with psycopg.connect(**CONN_CONFIG, dbname=databaseSchema["dbname"]) as conn:
+        with psycopg.connect(
+            **CONN_CONFIG,
+            dbname=to_lower_snake_case(databaseSchema["dbname"]),
+            autocommit=False,
+        ) as conn:
             with conn.cursor() as cur:
                 targets: TransformTargets = {}
                 for tableSchema in databaseSchema["tables"]:
@@ -70,7 +74,11 @@ def entry_table_transform(
         transformation (Callable[ [psycopg.Cursor, DataTransformTargets], None, ]): The transformation to apply.  The transformation function takes in in the cursor and a dictionary with the database table name as the key and a tuple with length 2 containing the table type and the full item schema.
     """
     for databaseSchema in CONFIG["data"]:
-        with psycopg.connect(**CONN_CONFIG, dbname=databaseSchema["dbname"]) as conn:
+        with psycopg.connect(
+            **CONN_CONFIG,
+            dbname=to_lower_snake_case(databaseSchema["dbname"]),
+            autocommit=False,
+        ) as conn:
             with conn.cursor() as cur:
                 targets: DataTransformTargets = {}
                 for tableSchema in databaseSchema["tables"]:
