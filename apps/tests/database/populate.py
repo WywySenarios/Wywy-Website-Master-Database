@@ -34,7 +34,13 @@ def populate_transformation(cur: psycopg.Cursor, targets: TransformTargets):
                     )
 
                 data_entries[target_table_name] = schema
-            case "tag_aliases" | "tag_groups" | "tag_names" | "tags":
+            case "tag_aliases":
+                tag_aliases_tables.append(target_table_name)
+            case "tags":
+                tags_tables.append(target_table_name)
+            case "tag_names":
+                tag_names_tables.append(target_table_name)
+            case "tag_groups":
                 tag_groups_tables.append(target_table_name)
 
     for target_table_name in tag_names_tables:
@@ -56,7 +62,14 @@ def populate_transformation(cur: psycopg.Cursor, targets: TransformTargets):
             # @TODO more robust foreign keys
             sql.SQL(
                 "INSERT INTO {target_table_name} (alias, tag_id) VALUES (%s, 1), (%s, 2), (%s, 3), (%s, 4), (%s, 5);"
-            ).format(target_table_name=sql.Identifier(target_table_name))
+            ).format(target_table_name=sql.Identifier(target_table_name)),
+            (
+                f"{target_table_name} tag alias 1",
+                f"{target_table_name} tag alias 2",
+                f"{target_table_name} tag alias 3",
+                f"{target_table_name} tag alias 4",
+                f"{target_table_name} tag alias 5",
+            ),
         )
 
     for target_table_name in tag_groups_tables:
@@ -92,68 +105,92 @@ def populate_transformation(cur: psycopg.Cursor, targets: TransformTargets):
         )
 
     for target_table_name in data_entries:
-        column_names: List[str] = []
+        columns_shape: List[sql.Composable] = []
         values_shape: List[sql.Composable] = []
         values: List[Any] = []
 
         if data_entries[target_table_name].get("tagging", False):
-            column_names.append("primary_tag")
+            columns_shape.append(sql.Identifier("primary_tag"))
             values_shape.append(sql.Placeholder())
             values.append(1)
 
         for column_schema in data_entries[target_table_name]["schema"]:
             # values
             # @TODO enum
-            values_shape.append(sql.Placeholder())
             match (column_schema["datatype"]):
                 case "bool" | "boolean":
-                    column_names.append(to_lower_snake_case(column_schema["name"]))
+                    columns_shape.append(
+                        sql.Identifier(to_lower_snake_case(column_schema["name"]))
+                    )
                     values_shape.append(sql.Placeholder())
                     values.append("true")
                 case "date":
-                    column_names.append(to_lower_snake_case(column_schema["name"]))
+                    columns_shape.append(
+                        sql.Identifier(to_lower_snake_case(column_schema["name"]))
+                    )
                     values_shape.append(sql.Placeholder())
                     values.append("0001-01-01")
                 case "time":
-                    column_names.append(to_lower_snake_case(column_schema["name"]))
+                    columns_shape.append(
+                        sql.Identifier(to_lower_snake_case(column_schema["name"]))
+                    )
                     values_shape.append(sql.Placeholder())
                     values.append("01:01:01")
                 case "timestamp":
-                    column_names.append(to_lower_snake_case(column_schema["name"]))
+                    columns_shape.append(
+                        sql.Identifier(to_lower_snake_case(column_schema["name"]))
+                    )
                     values_shape.append(sql.Placeholder())
                     values.append("0001-01-01T01:01:01")
                 case "int" | "integer":
-                    column_names.append(to_lower_snake_case(column_schema["name"]))
+                    columns_shape.append(
+                        sql.Identifier(to_lower_snake_case(column_schema["name"]))
+                    )
                     values_shape.append(sql.Placeholder())
                     values.append("23")
                 case "float" | "number":
-                    column_names.append(to_lower_snake_case(column_schema["name"]))
+                    columns_shape.append(
+                        sql.Identifier(to_lower_snake_case(column_schema["name"]))
+                    )
                     values_shape.append(sql.Placeholder())
                     values.append("2.3")
                 case "text" | "str" | "string":
-                    column_names.append(to_lower_snake_case(column_schema["name"]))
+                    columns_shape.append(
+                        sql.Identifier(to_lower_snake_case(column_schema["name"]))
+                    )
                     values_shape.append(sql.Placeholder())
                     values.append(f"{target_table_name} text")
                 case "enum":
-                    column_names.append(to_lower_snake_case(column_schema["name"]))
+                    columns_shape.append(
+                        sql.Identifier(to_lower_snake_case(column_schema["name"]))
+                    )
                     values_shape.append(sql.Placeholder())
                     values.append(None)
                 case "geodetic point":
-                    column_names.append(to_lower_snake_case(column_schema["name"]))
-                    column_names.append(
-                        f"{to_lower_snake_case(column_schema["name"])}_latlong_accuracy"
+                    columns_shape.append(
+                        sql.Identifier(to_lower_snake_case(column_schema["name"]))
                     )
-                    column_names.append(
-                        f"{to_lower_snake_case(column_schema["name"])}_altitude"
+                    columns_shape.append(
+                        sql.Identifier(
+                            f"{to_lower_snake_case(column_schema["name"])}_latlong_accuracy"
+                        )
                     )
-                    column_names.append(
-                        f"{to_lower_snake_case(column_schema["name"])}_altitude_accuracy"
+                    columns_shape.append(
+                        sql.Identifier(
+                            f"{to_lower_snake_case(column_schema["name"])}_altitude"
+                        )
+                    )
+                    columns_shape.append(
+                        sql.Identifier(
+                            f"{to_lower_snake_case(column_schema["name"])}_altitude_accuracy"
+                        )
                     )
                     values_shape.append(sql.Placeholder())
                     values_shape.append(sql.Placeholder())
                     values_shape.append(sql.Placeholder())
                     values_shape.append(sql.Placeholder())
                     values.append("POINT (0.2325 0.2325)")
+                    values.append(0.23)
                     values.append(2.3)
                     values.append(0.23)
 
@@ -162,7 +199,7 @@ def populate_transformation(cur: psycopg.Cursor, targets: TransformTargets):
                 "INSERT INTO {target_table_name} ({column_names}) VALUES ({values});"
             ).format(
                 target_table_name=sql.Identifier(target_table_name),
-                column_names=sql.SQL(", ").join(column_names),
+                column_names=sql.SQL(", ").join(columns_shape),
                 values=sql.SQL(", ").join(values_shape),
             ),
             (*values,),
@@ -174,10 +211,10 @@ def populate_transformation(cur: psycopg.Cursor, targets: TransformTargets):
                 """
                 INSERT INTO {target_table_name} (entry_id, tag_id) VALUES
                     (1, 1), (1, 2), (1, 3), (1, 4), (1, 5),
-                    (2, 1), (2, 2), (2, 3), (2, 4),
-                    (3, 1), (3, 2), (3, 3),
-                    (4, 1), (4, 2),
-                    (5, 1);
+                    (1, 1), (1, 2), (1, 3), (1, 4),
+                    (1, 1), (1, 2), (1, 3),
+                    (1, 1), (1, 2),
+                    (1, 1);
                 """
             ).format(target_table_name=sql.Identifier(target_table_name))
         )
