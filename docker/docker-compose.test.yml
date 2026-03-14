@@ -6,8 +6,20 @@ services:
     build:
       context: ../
       dockerfile: apps/tests/Dockerfile
+    env_file:
+      - path: ${UNIVERSAL_CONFIG_DIR}/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/.env.dev
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env.dev
+        required: true
     secrets:
       - admin
+    volumes:
+      - ./../apps/tests:/apps/tests
+      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
     depends_on:
       postgres:
         condition: service_healthy
