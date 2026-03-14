@@ -112,7 +112,7 @@ void serialize_select_result(const PGresult *res, char *buffer,
 
   // column names
   n = strlen("{\"columns\":[");
-  if (remaining_size -= n < 0) {
+  if ((remaining_size -= n) < 0) {
     errno = ENOMEM;
     return;
   }
@@ -126,7 +126,8 @@ void serialize_select_result(const PGresult *res, char *buffer,
     }
     *cur++ = '"';
     n = strlen(PQfname(res, i));
-    if (n > remaining_size - 2) { // account for both n and the extra text after
+    if (n >
+        (remaining_size - 2)) { // account for both n and the extra text after
       errno = ENOMEM;
       return;
     }
@@ -144,7 +145,7 @@ void serialize_select_result(const PGresult *res, char *buffer,
     }
     // remove trailing comma & continue with the data section
     n = strlen("],\"data\":[") - 1;
-    if (remaining_size -= n < 0) {
+    if ((remaining_size -= n) < 0) {
       errno = ENOMEM;
       return;
     }
@@ -159,7 +160,7 @@ void serialize_select_result(const PGresult *res, char *buffer,
       for (int col_num = 0; col_num < PQnfields(res); col_num++) {
         if (PQgetisnull(res, row_num, col_num)) {
           n = strlen("null,");
-          if (remaining_size -= n < 0) {
+          if ((remaining_size -= n) < 0) {
             errno = ENOMEM;
             return;
           }
@@ -175,7 +176,7 @@ void serialize_select_result(const PGresult *res, char *buffer,
         case 1083:
         case 1114:
           // if the type requires quotation,
-          if (remaining_size -= n + 2 < 0) {
+          if ((remaining_size -= n + 2) < 0) {
             errno = ENOMEM;
             return;
           }
@@ -185,7 +186,7 @@ void serialize_select_result(const PGresult *res, char *buffer,
           *cur++ = '"';
           break;
         default:
-          if (remaining_size -= n < 0) {
+          if ((remaining_size -= n) < 0) {
             errno = ENOMEM;
             return;
           }
@@ -199,7 +200,7 @@ void serialize_select_result(const PGresult *res, char *buffer,
       }
     }
 
-    if (remaining_size -= 2 < 0) {
+    if ((remaining_size -= 2) < 0) {
       errno = ENOMEM;
       return;
     }
