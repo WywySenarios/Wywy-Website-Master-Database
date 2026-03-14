@@ -19,7 +19,7 @@ services:
     restart: no
     environment:
     volumes:
-      - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/postgresql.dev.conf:/etc/postgresql/postgresql.conf:ro
       - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
 
 secrets:
