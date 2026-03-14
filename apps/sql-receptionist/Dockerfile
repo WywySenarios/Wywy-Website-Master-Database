@@ -3,8 +3,6 @@ WORKDIR /apps/sql-receptionist
 
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
-COPY ./apps/sql-receptionist .
-
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     libyaml-dev \
@@ -25,6 +23,8 @@ RUN wget https://github.com/tlsa/libcyaml/archive/refs/tags/v1.4.2.tar.gz \
     && cd libcyaml-1.4.2 \
     && make \
     && make install VARIANT=debug
+
+COPY ./apps/sql-receptionist .
 
 RUN make clean
 RUN make
