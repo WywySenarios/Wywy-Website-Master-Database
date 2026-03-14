@@ -1,18 +1,27 @@
 name: master-database
 
 services:
-  wywy_website_master_database-test:
-    container_name: wywy_website_master_database-test
+  test:
     working_dir: /apps/tests
     build:
       context: ../
       dockerfile: apps/tests/Dockerfile
+    secrets:
+      - admin
+    depends_on:
+      postgres:
+        condition: service_healthy
+      sql_receptionist:
+        condition: service_started
 
   # @TODO secrets for db authentication
-  wywy_website_master_database-postgres:
+  postgres:
     restart: no
     environment:
-      PGDATA: /var/lib/postgres
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
       - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+
+secrets:
+  admin:
+    file: ${SECRETS_DIR}/admin.txt

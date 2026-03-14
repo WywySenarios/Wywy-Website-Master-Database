@@ -1,8 +1,7 @@
 name: master-database
 
 services:
-  wywy_website_master_database-sql_receptionist:
-    container_name: wywy_website_master_database-sql_receptionist
+  sql_receptionist:
     tty: true
     # image: gcc:latest
     working_dir: /apps/sql-receptionist
@@ -18,19 +17,18 @@ services:
     secrets:
       - admin
     networks:
-      - wywy_website_master_database-cloudflared
-      - wywy_website_master_database-postgres
+      - cloudflared
+      - postgres
     ports:
       - 2523:2523
     depends_on:
-      wywy_website_master_database-postgres:
+      postgres:
         condition: service_healthy
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
     command: ./app
 
-  wywy_website_master_database-create_tables:
-    container_name: wywy_website_master_database-create_tables
+  create_tables:
     tty: true
     working_dir: /apps/create_tables
     build:
@@ -44,16 +42,15 @@ services:
       - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
         required: true
     depends_on:
-      wywy_website_master_database-postgres:
+      postgres:
         condition: service_healthy
     networks:
-      - wywy_website_master_database-postgres
+      - postgres
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/apps/create_tables/config.yml
     command: python3 create_tables.py
 
-  wywy_website_master_database-cloudflared:
-    container_name: wywy_website_master_database-cloudflared
+  cloudflared:
     working_dir: /apps/cloudflared
     build:
       context: ../
@@ -66,11 +63,10 @@ services:
     secrets:
       - cloudflared_token
     networks:
-      - wywy_website_master_database-cloudflared
+      - cloudflared
 
   # @TODO secrets for db authentication
-  wywy_website_master_database-postgres:
-    container_name: wywy_website_master_database-postgres
+  postgres:
     build:
       context: ../
       dockerfile: apps/postgres/Dockerfile
@@ -90,7 +86,7 @@ services:
     ports:
       - ${DATABASE_PORT}:${DATABASE_PORT}
     networks:
-      - wywy_website_master_database-postgres
+      - postgres
     healthcheck:
       test:
         [
@@ -118,10 +114,10 @@ services:
     command: ./entrypoint.sh
 
 networks:
-  wywy_website_master_database-cloudflared:
-    name: wywy_website_master_database-cloudflared
-  wywy_website_master_database-postgres:
-    name: wywy_website_master_database-postgres
+  cloudflared:
+    name: cloudflared
+  postgres:
+    name: postgres
     driver: bridge
 
 secrets:

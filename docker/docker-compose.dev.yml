@@ -1,8 +1,7 @@
 name: master-database
 
 services:
-  wywy_website_master_database-sql_receptionist:
-    container_name: wywy_website_master_database-sql_receptionist
+  sql_receptionist:
     tty: true
     # image: gcc:latest
     working_dir: /apps/sql-receptionist
@@ -36,14 +35,13 @@ services:
     ports:
       - 2523:2523
     depends_on:
-      wywy_website_master_database-postgres:
+      postgres:
         condition: service_healthy
     # compile and run the application.
     # Do not close the container on error.
     command: bash -c "make clean && make && exec ./app || echo The SQL Receptionist is now sleeping... && sleep 3600"
 
-  wywywebsite_create_tables:
-    container_name: wywywebsite_create_tables
+  create_tables:
     tty: true
     working_dir: /apps/create_tables
     build:
@@ -73,13 +71,12 @@ services:
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/apps/create_tables/config.yml
     depends_on:
-      wywy_website_master_database-postgres:
+      postgres:
         condition: service_healthy
     command: python3 create_tables.py
 
   # @TODO secrets for db authentication
-  wywy_website_master_database-postgres:
-    container_name: wywy_website_master_database-postgres
+  postgres:
     build:
       context: ../
       dockerfile: apps/postgres/Dockerfile
@@ -129,10 +126,6 @@ services:
       - ssh_private_key
       - ssh_backup_public_key
     command: ./entrypoint.sh
-
-volumes:
-  # postgres-db:
-  astro-node_modules:
 
 secrets:
   admin:
