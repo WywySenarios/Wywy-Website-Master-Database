@@ -1,0 +1,213 @@
+"""SELECT related tests for sql-receptionist."""
+
+import unittest
+import requests
+import datetime
+import re
+from os import environ
+from ..config import CONFIG
+from ..Wywy_Website_Types import DataColumn, EntryTableData, DescriptorInfo, TableInfo
+from ..utils import to_lower_snake_case
+from ..database.purge import purge_database
+from ..database.populate import populate_database
+from typing import List
+
+
+def assert_data_response(
+    test_object: unittest.TestCase,
+    response: requests.Response,
+    item_schema: DescriptorInfo | TableInfo,
+) -> EntryTableData:
+    column_schema: List[DataColumn] = item_schema["schema"]
+
+    test_object.assertEqual(response.status_code, 200, "Data fetch response not OK.")
+
+    data = response.json()
+
+    test_object.assertIsInstance(data, dict, "Data fetch response is not a dictionary")
+
+    # check keys
+    test_object.assertCountEqual(
+        data,
+        ["columns", "data"],
+        "Data fetch response must only contain columns and data of interest.",
+    )
+
+    # check column names
+    test_object.assertIsInstance(data["columns"], list)
+    column_name_iterator = iter(data["columns"])
+    for column in column_schema:
+        column_name = to_lower_snake_case(column["name"])
+        test_object.assertEqual(next(column_name_iterator), column_name)
+
+        match (column["datatype"]):
+            case "geodetic point":
+                test_object.assertEqual(
+                    next(column_name_iterator),
+                    f"{column_name}_latlong_accuracy",
+                    f"Missing sub-column {column_name}_latlong_accuracy",
+                )
+                test_object.assertEqual(
+                    next(column_name_iterator),
+                    f"{column_name}_altitude",
+                    f"Missing sub-column {column_name}_altitude",
+                )
+                test_object.assertEqual(
+                    next(column_name_iterator),
+                    f"{column_name}_altitude_accuracy",
+                    f"Missing sub-column {column_name}_altitude_accuracy",
+                )
+            case _:
+                pass
+    test_object.assertTrue(
+        not any(column_name_iterator), "Extra columns are not allowed."
+    )
+
+    # check data
+    test_object.assertIsInstance(data["data"], list)
+    for row in data["data"]:
+        test_object.assertIsInstance(row, list)
+
+        row_iterator = iter(row)
+
+        for i in range(len(column_schema)):
+            # assume it is impossible for the sql-receptionist to select the wrong table's data
+            # @TODO schema check submodule
+            match (column_schema[i]["datatype"]):
+                case "bool" | "boolean":
+                    test_object.assertIn(str(row[i]).lower(), ["true", "false"])
+                # test will fail if the string is unparseable or not in an expected format
+                case "int" | "integer":
+                    int(next(row_iterator))
+                case "float" | "number":
+                    float(next(row_iterator))
+                case "str" | "string" | "text":
+                    test_object.assertTrue(
+                        next(row_iterator), "String should not be empty."
+                    )
+                case "date":
+                    datetime.date.fromisoformat(next(row_iterator))
+                case "time":
+                    datetime.time.fromisoformat(next(row_iterator))
+                case "timestamp":
+                    datetime.datetime.fromisoformat(next(row_iterator))
+                case "enum":
+                    # @TODO enums
+                    next(row_iterator)
+                    pass
+                case "geodetic point":
+                    point = next(row_iterator)
+                    test_object.assertIsInstance(
+                        point,
+                        str,
+                        "Geodetic points must be represented in PostGIS WKT.",
+                    )
+                    matches = re.fullmatch(
+                        r"POINT ?\((-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)\)",
+                        point,
+                    )
+
+                    # check longitude (X) and latitude (Y)
+                    if matches:
+                        test_object.assertIsNotNone(
+                            matches.group(1),
+                            "Geodetic points must be represented in PostGIS WKT.",
+                        )
+                        test_object.assertIsNotNone(
+                            matches.group(2),
+                            "Geodetic points must be represented in PostGIS WKT.",
+                        )
+                        longitude = float(matches.group(1))
+                        test_object.assertGreaterEqual(
+                            longitude,
+                            -180,
+                            "Invalid longitude: Geodetic points must be represented in PostGIS WKT.",
+                        )
+                        test_object.assertLessEqual(
+                            longitude,
+                            180,
+                            "Invalid longitude: Geodetic points must be represented in PostGIS WKT.",
+                        )
+                        latitude = float(matches.group(1))
+                        test_object.assertGreaterEqual(
+                            latitude,
+                            -90,
+                            "Invalid latitude: Geodetic points must be represented in PostGIS WKT.",
+                        )
+                        test_object.assertLessEqual(
+                            latitude,
+                            90,
+                            "Invalid latitude: Geodetic points must be represented in PostGIS WKT.",
+                        )
+                    else:
+                        test_object.assertIsNotNone(
+                            matches,
+                            "Geodetic points must be represented in PostGIS WKT.",
+                        )
+
+                    latlong_accuracy = next(row_iterator)
+
+                    if latlong_accuracy is not None:
+                        float(latlong_accuracy)
+
+                    altitude = next(row_iterator)
+                    if altitude is not None:
+                        float(altitude)
+
+                    altitude_accuracy = next(row_iterator)
+                    if altitude_accuracy is not None:
+                        float(altitude_accuracy)
+
+        test_object.assertTrue(not any(row_iterator), "Excess data.")
+
+    return data
+
+
+class TestSelectEndpoints(unittest.TestCase):
+    def setUp(self):
+        populate_database()
+
+    def tearDown(self):
+        purge_database()
+
+    def test_select(self):
+        """Test the SELECT data (main table & descriptors) endpoint for every table."""
+
+        # is the SELECT endpoint secured with authentication?
+        self.assertEqual(
+            requests.get(f"{environ["SQL_RECEPTIONIST_HOST"]}").status_code, 403
+        )
+
+        # @TODO verify invalid URLs
+
+        for database_schema in CONFIG["data"]:
+            database_name = to_lower_snake_case(database_schema["dbname"])
+            for table_schema in database_schema["tables"]:
+                table_name = to_lower_snake_case(table_schema["tableName"])
+                # @TODO read/write perms
+
+                # main data
+                response = requests.get(
+                    f"{environ["SQL_RECEPTIONIST_HOST"]}/{database_name}/{table_name}"
+                )
+                assert_data_response(self, response, table_schema)
+
+                # descriptors
+                if "descriptors" in table_schema:
+                    for descriptor_schema in table_schema["descriptors"]:
+                        response = requests.get(
+                            f"{environ["SQL_RECEPTIONIST_HOST"]}/{database_name}/{table_name}/descriptors/{to_lower_snake_case(descriptor_schema["name"])}"
+                        )
+                        assert_data_response(self, response, descriptor_schema)
+
+    # def test_select_tags(self):
+    #     """Test the SELECT tags endpoint for every table."""
+
+    # def test_select_tag_names(self):
+    #     """Test the SELECT tag names endpoint for every table."""
+
+    # def test_select_tag_aliases(self):
+    #     """Test the SELECT tag aliases endpoint for every table."""
+
+    # def test_select_tag_groups(self):
+    #     """Test the SELECT tag groups endpoint for every table."""
