@@ -1,6 +1,11 @@
 from os import environ
 from typing import Literal
-from .types import Datatype, PostgresDatatype
+from .Wywy_Website_Types import Datatype, PostgresDatatype
+
+SQL_RECEPTIONIST_ADMIN_USERNAME = "admin"
+f = open("/run/secrets/admin", "r")
+SQL_RECEPTIONIST_PASSWORD = f.read()
+f.close()
 
 # Constants
 RESERVED_DATABASE_NAMES = ["info"]

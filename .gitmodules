@@ -2,5 +2,5 @@
 	path = apps/create_tables
 	url = https://github.com/WywySenarios/Wywy-Website-Create-Tables
 [submodule "apps/tests/types"]
-	path = apps/tests/types
+	path = apps/tests/Wywy_Website_Types
 	url = https://github.com/WywySenarios/Wywy-Website-Python-Types
