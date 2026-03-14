@@ -60,5 +60,6 @@ extern void construct_select_query(struct select_options *options, char *buffer,
  * @param res The PGresult to serialize.
  * @param buffer The buffer to write to.
  * @param buffer_size The maxmimum amount of characters the buffer can store.
+ * @returns the length of the string written or -1 on error.
  */
-extern void serialize_select_result(const PGresult *res, char *buffer, const size_t buffer_size);
+extern int serialize_select_result(const PGresult *res, char *buffer, const size_t buffer_size);
