@@ -120,7 +120,6 @@ int serialize_select_result(const PGresult *res, char *buffer,
   cur += n;
 
   for (int i = 0; i < PQnfields(res); i++) {
-    printf("Cur: %s\n", cur);
     if (--remaining_size < 0) {
       errno = ENOMEM;
       return -1;
