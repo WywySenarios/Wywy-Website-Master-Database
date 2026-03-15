@@ -76,6 +76,11 @@ Failed to decode JSON:
                 )
             case _:
                 pass
+
+        if column.get("comments", False) is True:
+            test_object.assertEqual(
+                next(column_name_iterator), f"{column_name}_comments"
+            )
     test_object.assertTrue(
         not any(column_name_iterator), "Extra columns are not allowed."
     )
@@ -177,6 +182,10 @@ Failed to decode JSON:
                     altitude_accuracy = next(row_iterator)
                     if altitude_accuracy is not None:
                         float(altitude_accuracy)
+
+            if column_schema[i].get("comments", False) is True:
+                # @TODO generate & test comments values
+                test_object.assertEqual(next(row_iterator), "")
 
         test_object.assertTrue(not any(row_iterator), "Excess data.")
 
