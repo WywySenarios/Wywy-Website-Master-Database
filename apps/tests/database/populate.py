@@ -194,26 +194,30 @@ def populate_transformation(cur: psycopg.Cursor, targets: TransformTargets):
                     values.append(2.3)
                     values.append(0.23)
 
-        cur.execute(
-            sql.SQL(
-                "INSERT INTO {target_table_name} ({column_names}) VALUES ({values});"
-            ).format(
-                target_table_name=sql.Identifier(target_table_name),
-                column_names=sql.SQL(", ").join(columns_shape),
-                values=sql.SQL(", ").join(values_shape),
-            ),
-            (*values,),
-        )
+        for i in range(5):
+            cur.execute(
+                sql.SQL(
+                    "INSERT INTO {target_table_name} (id, {column_names}) VALUES (%s, {values});"
+                ).format(
+                    target_table_name=sql.Identifier(target_table_name),
+                    column_names=sql.SQL(", ").join(columns_shape),
+                    values=sql.SQL(", ").join(values_shape),
+                ),
+                (
+                    i + 1,
+                    *values,
+                ),
+            )
 
     for target_table_name in tags_tables:
         cur.execute(
             sql.SQL(
                 """
                 INSERT INTO {target_table_name} (entry_id, tag_id) VALUES
-                    (1, 1), (1, 2), (1, 3), (1, 4), (1, 5),
-                    (1, 1), (1, 2), (1, 3), (1, 4),
-                    (1, 1), (1, 2), (1, 3),
-                    (1, 1), (1, 2),
+                    (1, 1), (2, 2), (3, 3), (4, 4), (5, 5),
+                    (1, 1), (2, 2), (3, 3), (4, 4),
+                    (1, 1), (2, 2), (3, 3),
+                    (1, 1), (2, 2),
                     (1, 1);
                 """
             ).format(target_table_name=sql.Identifier(target_table_name))
