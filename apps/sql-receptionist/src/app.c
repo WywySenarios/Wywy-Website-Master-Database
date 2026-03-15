@@ -43,13 +43,12 @@
 
 #define PORT 2523 // @todo make this configurable
 #define BUFFER_SIZE 1048576
-#define MAX_ENTRY_SIZE 104857
 #define AUTH_DB_NAME "auth" // @todo make this configurable
 #define MAX_URL_SECTIONS 4  // must be 2 or larger
 #define MAX_REGEX_MATCHES 25
-#define limit "20"
 #define NUM_DATATYPES_KEYS 1
 #define MAX_PASSWORD_LENGTH 255
+#define QUERY_SIZE_LIMIT 65536
 
 int done;
 void handle_sigterm(int signal_num) {
@@ -545,13 +544,14 @@ void *handle_client(void *arg) {
       regex_iterator_load_target(querystring_regex, querystring);
 
       // many of these need to be non-null:
-      char *select = "*";
-      char *order_by = NULL;
-      char *min = NULL;
-      int min_type = -1; // 1 for inclusive, 0 for exclusive
-      char *max = NULL;
-      int max_type = -1; // 1 for inclusive, 0 for exclusive
-      char *start_index = NULL;
+      struct select_options options = {table_name,
+                                       "id",
+                                       NULL,
+                                       table->schema,
+                                       table->schema_count,
+                                       1,
+                                       SELECT_DEFAULT_LIMIT,
+                                       0};
 
       // read every querystring value
       // store every single valid key-value pair.
@@ -564,65 +564,15 @@ void *handle_client(void *arg) {
         valid = 0;
 
         // what type is it?
-        if (strcmp(key, "SELECT") == 0) {
-          if (strcmp(value, "*") == 0) {
-            valid = 1;
-          } else {
-            for (unsigned i = 0; i < table->schema_count; i++) {
-              if (strcmp(value, (*table).schema[i].name) == 0) {
-                select = value;
-                valid = 1;
-                break;
-              }
-            }
-          }
+        if (strcmp(key, "SELECT") == 0) { // legacy code compatability
+          valid = 1;
         } else if (strcmp(key, "ORDER_BY") == 0) {
           if (strcmp(value, "ASC") == 0) {
-            order_by = "ASC";
+            options.order_by_order = "ASC";
             valid = 1;
           } else if (strcmp(value, "DSC") == 0) {
-            order_by = "DSC";
+            options.order_by_order = "DSC";
             valid = 1;
-          }
-        } else if (strcmp(key, "MIN_INCLUSIVE") == 0) {
-          valid = regex_check("^[0-9]$", 0, REG_EXTENDED, 0, value);
-          if (valid == 1) {
-            if (min_type == -1) {
-              min = value;
-              min_type = 1;
-            } else {
-              valid = 0;
-            }
-          }
-        } else if (strcmp(key, "MAX_INCLUSIVE") == 0) {
-          valid = regex_check("^[0-9]$", 0, REG_EXTENDED, 0, value);
-          if (valid == 1) {
-            if (max_type == -1) {
-              max = value;
-              max_type = 1;
-            } else {
-              valid = 0;
-            }
-          }
-        } else if (strcmp(key, "MIN_EXCLUSIVE") == 0) {
-          valid = regex_check("^[0-9]$", 0, REG_EXTENDED, 0, value);
-          if (valid == 1) {
-            if (min_type == -1) {
-              min = value;
-              min_type = 0;
-            } else {
-              valid = 0;
-            }
-          }
-        } else if (strcmp(key, "MAX_EXCLUSIVE") == 0) {
-          valid = regex_check("^[0-9]$", 0, REG_EXTENDED, 0, value);
-          if (valid == 1) {
-            if (max_type == -1) {
-              max = value;
-              max_type = 0;
-            } else {
-              valid = 0;
-            }
           }
         } else {
           build_response_printf(400, &response, &response_len,
@@ -634,9 +584,7 @@ void *handle_client(void *arg) {
           goto end;
         }
 
-        // } else if (strcmp(item_name, "INDEX_BY")) {
-        switch (valid) {
-        case 0:
+        if (!valid) {
           build_response_printf(400, &response, &response_len,
                                 strlen("Key value pair \"\", \"\" is "
                                        "invalid.") +
@@ -647,57 +595,29 @@ void *handle_client(void *arg) {
           free(key);
           free(value);
           goto end;
-        case 1:
-          free(key);
-          free(value);
-          break;
-        default:
-          build_response_printf(
-              400, &response, &response_len,
-              strlen("Something went wrong when checking querystring key "
-                     "\"\".") +
-                  strlen(key),
-              "Something went wrong when checking querystring key \"%s\".",
-              key);
-          free(key);
-          free(value);
-          goto end;
         }
+
+        free(key);
+        free(value);
         regex_iterator_advance_cur(querystring_regex);
       }
 
       // are the mandatory request params valid? We need something to select and
       // an order to sort it by.
-      if (select && order_by) {
-        size_t query_len = strlen("SELECT \nFROM \nORDER BY id \nLIMIT;") +
-                           strlen(select) + strlen(table_name) +
-                           strlen(order_by) + strlen(limit);
-        query = malloc(query_len + 1);
-
-        // decide the SQL query:
-        snprintf(query, query_len,
-                 "SELECT %s\nFROM %s\nORDER BY id %s\nLIMIT %s;", select,
-                 table_name, order_by, limit);
-        // add in the optional request params
-        // @todo min/max
-        // add in the last thing
-
-        // attempt to query the database
+      if (options.order_by_order && options.limit) {
+        char query[QUERY_SIZE_LIMIT];
+        if (errno) {
+          perror("Data table SELECT query construction");
+          build_response(500, &response, &response_len,
+                         "Server-side SELECT query construction failure.");
+        }
+        construct_select_query(&options, query, QUERY_SIZE_LIMIT);
         generic_select_query_and_respond(database_name, query, &res, &conn,
                                          &response, &response_len);
       } else {
         build_response(400, &response, &response_len,
-                       "SELECT queries need a valid target (SELECT) and a "
-                       "valid ordering (ORDER BY)");
-      }
-
-      // free(select);
-      // free(order_by);
-      if (min) {
-        free(min);
-      }
-      if (max) {
-        free(max);
+                       "SELECT queries need a valid ordering (ORDER_BY) and a "
+                       "valid limit (contact dev if LIMIT is not set).");
       }
     } else {
       // user does not have read access to the respective table
