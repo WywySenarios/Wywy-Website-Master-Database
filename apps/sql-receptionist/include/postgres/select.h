@@ -4,6 +4,7 @@
 #endif
 #include "libpq-fe.h"
 #include <stdlib.h>
+#define SELECT_DEFAULT_LIMIT 500
 
 struct select_options {
     /**
@@ -26,6 +27,10 @@ struct select_options {
      * @param schema_count The amount of data columns inside of the schema.
      */
     const unsigned int schema_count;
+    /**
+     * @param id_column Whether or not the ID column is a part of this table.
+     */
+    const int id_column;
     /**
      * @param limit The upper bound of the number of entries to return. Limit is directly injected into the SELECT query. The query will not be upper bounded if limit is set to a negative integer.
      */
