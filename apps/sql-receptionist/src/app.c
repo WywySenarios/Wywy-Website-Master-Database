@@ -116,7 +116,7 @@ void generic_select_query_and_respond(char *database_name, char *query,
   }
 
   *response = malloc(BUFFER_SIZE);
-  *response_len = write_header(200, *response, BUFFER_SIZE) - 1;
+  *response_len = write_header(200, *response, BUFFER_SIZE);
   if (*response_len + 1 >= BUFFER_SIZE) {
     free(*response);
     build_response_printf(500, response, response_len, strlen("No memory") + 1,
@@ -125,7 +125,7 @@ void generic_select_query_and_respond(char *database_name, char *query,
   }
 
   // + 1 because the response_len is a length, not a size
-  *response_len += serialize_select_result(*res, *response + *response_len + 1,
+  *response_len += serialize_select_result(*res, *response + *response_len,
                                            BUFFER_SIZE - *response_len);
   if (errno) {
     perror("SELECT query result serialization");
