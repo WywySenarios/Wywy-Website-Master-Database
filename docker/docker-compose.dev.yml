@@ -39,7 +39,7 @@ services:
         condition: service_healthy
     # compile and run the application.
     # Do not close the container on error.
-    command: bash -c "make clean && make && exec ./app || echo The SQL Receptionist is now sleeping... && sleep 3600"
+    command: bash -c "make clean && make && exec valgrind ./app"
 
   create_tables:
     tty: true
