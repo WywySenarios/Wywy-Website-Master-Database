@@ -50,30 +50,112 @@ void construct_select_query(struct select_options *options, char *buffer,
   size_t remaining_size = buffer_size;
 
   // construct query
-  n = strlen("SELECT (");
+  n = strlen("SELECT ");
   if (remaining_size < n) {
     errno = ENOMEM;
     return;
   }
-  memcpy(cur, "SELECT (", n);
-  cur += n;
   remaining_size -= n;
+  memcpy(cur, "SELECT ", n);
+  cur += n;
 
   // columns
-  for (int i = 0; i < options->schema_count; i++) {
-    // add "[column_name],"
-    n = strlen(options->schema[i].name);
-    if (remaining_size < n + 1) {
+  if (options->id_column) {
+    if (remaining_size < 3) {
       errno = ENOMEM;
       return;
     }
-    memcpy(cur, options->schema[i].name, n);
-    *++cur = ',';
-    remaining_size -= n + 1;
+    remaining_size -= 3;
+    *cur++ = 'i';
+    *cur++ = 'd';
+    *cur++ = ',';
   }
-  *cur = ')'; // get rid of trailing comma & close the bracket
+  for (int i = 0; i < options->schema_count; i++) {
+    size_t column_name_size = strlen(options->schema[i].name);
+    size_t temp;
+    // add "[column_name],"
+    if (strcmp(options->schema[i].datatype, "geodetic point") ==
+        0) { // special geodetic point logic
+      // ST_AsText([main_column]), [latlong_accuracy], [altitude],
+      // [altitude_accuracy],
+      n = 5 * column_name_size + strlen("ST_AsText") + strlen(" AS ") +
+          strlen("_latlong_accuracy") + strlen("_altitude") +
+          strlen("_altitude_accuracy") + 4;
+      if (remaining_size < n) {
+        errno = ENOMEM;
+        return;
+      }
+      remaining_size -= n;
+      // main column
+      memcpy(cur, "ST_AsText(", temp = strlen("ST_AsText("));
+      cur += temp;
+      memcpy(cur, options->schema[i].name, column_name_size);
+      to_lower_snake_case_n(cur, column_name_size);
+      cur += column_name_size;
+      *cur++ = ')';
+      *cur++ = ' ';
+      *cur++ = 'A';
+      *cur++ = 'S';
+      *cur++ = ' ';
+      memcpy(cur, options->schema[i].name, column_name_size);
+      to_lower_snake_case_n(cur, column_name_size);
+      cur += column_name_size;
+      *cur++ = ',';
+      // latlong_accuracy
+      memcpy(cur, options->schema[i].name, column_name_size);
+      to_lower_snake_case_n(cur, column_name_size);
+      cur += column_name_size;
+      memcpy(cur, "_latlong_accuracy", temp = strlen("_latlong_accuracy"));
+      cur += temp;
+      *cur++ = ',';
+      // altitude
+      memcpy(cur, options->schema[i].name, column_name_size);
+      to_lower_snake_case_n(cur, column_name_size);
+      cur += column_name_size;
+      memcpy(cur, "_altitude", temp = strlen("_altitude"));
+      cur += temp;
+      *cur++ = ',';
+      // altitude_accuracy
+      memcpy(cur, options->schema[i].name, column_name_size);
+      to_lower_snake_case_n(cur, column_name_size);
+      cur += column_name_size;
+      memcpy(cur, "_altitude_accuracy", temp = strlen("_altitude_accuracy"));
+      cur += temp;
+      *cur++ = ',';
+    } else {
+      if (remaining_size < (n = column_name_size + 1)) {
+        errno = ENOMEM;
+        return;
+      }
+      remaining_size -= n;
+      memcpy(cur, options->schema[i].name, column_name_size);
+      to_lower_snake_case_n(cur, column_name_size);
+      cur += column_name_size;
+      *cur++ = ',';
+    }
 
-  n = snprintf(cur, remaining_size, " FROM %s\nORDER BY %s %s\nLIMIT %d;",
+    // comments column
+    if (options->schema[i].comments) {
+      n = column_name_size + strlen("_comments") + 1;
+      if (remaining_size < n) {
+        errno = ENOMEM;
+        return;
+      }
+      remaining_size -= n;
+      memcpy(cur, options->schema[i].name, column_name_size);
+      to_lower_snake_case_n(cur, column_name_size);
+      cur += column_name_size;
+      memcpy(cur, "_comments", temp = strlen("_comments"));
+      cur += temp;
+      *cur++ = ',';
+    }
+  }
+
+  // get rid of trailing comma
+  cur--;
+  remaining_size++;
+
+  n = snprintf(cur, remaining_size, " FROM %s ORDER BY %s %s LIMIT %d;",
                options->table_name, options->order_by_column,
                options->order_by_order, options->limit);
   if (n < 0 || errno == EILSEQ) {
@@ -81,27 +163,36 @@ void construct_select_query(struct select_options *options, char *buffer,
     return;
   }
   cur += n;
-  remaining_size -= n;
-  if (remaining_size < 0) {
+  if (remaining_size < n) {
     errno = ENOMEM;
     return;
   }
+  remaining_size -= n;
 
   // row offset
   if (options->row_offset) {
     // -- to get rid of the semi-colon currently written into the query.
 
-    n = snprintf(--cur, remaining_size, " OFFSET %d;", options->row_offset);
+    n = snprintf(cur, remaining_size, " OFFSET %d;", options->row_offset);
     if (n < 0 || errno == EILSEQ) {
       errno = EILSEQ;
       return;
     }
-    remaining_size -= n;
-    if (remaining_size < 0) {
+    if (remaining_size < n) {
       errno = ENOMEM;
       return;
     }
+    remaining_size -= n;
+    cur += n;
   }
+
+  // null termination
+  if (remaining_size < 1) {
+    errno = ENOMEM;
+    return;
+  }
+  remaining_size--;
+  *cur++ = '\0';
 }
 
 int serialize_select_result(const PGresult *res, char *buffer,
