@@ -39,6 +39,7 @@ services:
         condition: service_healthy
     networks:
       - wywy_website_master_database-sql_receptionist
+      - default
     # compile and run the application.
     # Do not close the container on error.
     command: bash -c "make clean && make && exec valgrind ./app"
@@ -130,6 +131,7 @@ services:
     command: ./entrypoint.sh
 
 networks:
+  default: {}
   wywy_website_master_database-sql_receptionist:
     name: wywy_website_master_database-sql_receptionist
 
