@@ -239,52 +239,69 @@ int serialize_select_result(const PGresult *res, char *buffer,
   memcpy(--cur, "],\"data\":[", n);
   remaining_size -= n - 1;
   cur += n;
-  for (int row_num = 0; row_num < PQntuples(res); row_num++) {
+  // catch edge case where there's no data
+  if (PQntuples(res) == 0) {
     if (remaining_size < 1) {
       errno = ENOMEM;
       return -1;
     }
     remaining_size--;
-    *cur++ = '[';
-    for (int col_num = 0; col_num < PQnfields(res); col_num++) {
-      if (PQgetisnull(res, row_num, col_num)) {
-        n = strlen("null,");
-        if (remaining_size < n) {
-          errno = ENOMEM;
-          return -1;
-        }
-        memcpy(cur, "null,", n);
-        remaining_size -= n;
-        cur += n;
-        continue;
+    cur++;
+  } else {
+    for (int row_num = 0; row_num < PQntuples(res); row_num++) {
+      if (remaining_size < 1) {
+        errno = ENOMEM;
+        return -1;
       }
+      remaining_size--;
+      *cur++ = '[';
+      for (int col_num = 0; col_num < PQnfields(res); col_num++) {
+        if (PQgetisnull(res, row_num, col_num)) {
+          n = strlen("null,");
+          if (remaining_size < n) {
+            errno = ENOMEM;
+            return -1;
+          }
+          memcpy(cur, "null,", n);
+          remaining_size -= n;
+          cur += n;
+          continue;
+        }
 
-      n = strlen(PQgetvalue(res, row_num, col_num));
-      switch (PQftype(res, col_num)) {
-      case 25:
-      case 1082:
-      case 1083:
-      case 1114:
-        // if the type requires quotation,
-        if (remaining_size < n + 2) {
+        n = strlen(PQgetvalue(res, row_num, col_num));
+        switch (PQftype(res, col_num)) {
+        case 25:
+        case 1082:
+        case 1083:
+        case 1114:
+          // if the type requires quotation,
+          if (remaining_size < n + 2) {
+            errno = ENOMEM;
+            return -1;
+          }
+          remaining_size -= n + 2;
+          *cur++ = '"';
+          memcpy(cur, PQgetvalue(res, row_num, col_num), n);
+          cur += n;
+          *cur++ = '"';
+          break;
+        default:
+          if (remaining_size < n) {
+            errno = ENOMEM;
+            return -1;
+          }
+          remaining_size -= n;
+          memcpy(cur, PQgetvalue(res, row_num, col_num), n);
+          cur += n;
+          break;
+        }
+
+        if (remaining_size < 1) {
           errno = ENOMEM;
           return -1;
         }
-        remaining_size -= n + 2;
-        *cur++ = '"';
-        memcpy(cur, PQgetvalue(res, row_num, col_num), n);
-        cur += n;
-        *cur++ = '"';
-        break;
-      default:
-        if (remaining_size < n) {
-          errno = ENOMEM;
-          return -1;
-        }
-        remaining_size -= n;
-        memcpy(cur, PQgetvalue(res, row_num, col_num), n);
-        cur += n;
-        break;
+        remaining_size--;
+        *cur++ = ',';
       }
 
       if (remaining_size < 1) {
@@ -292,16 +309,9 @@ int serialize_select_result(const PGresult *res, char *buffer,
         return -1;
       }
       remaining_size--;
+      cur[-1] = ']';
       *cur++ = ',';
     }
-
-    if (remaining_size < 1) {
-      errno = ENOMEM;
-      return -1;
-    }
-    remaining_size--;
-    cur[-1] = ']';
-    *cur++ = ',';
   }
 
   // close out the JSON by overwriting the last trailing comma
