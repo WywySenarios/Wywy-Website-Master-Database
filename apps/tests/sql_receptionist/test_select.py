@@ -194,7 +194,7 @@ Failed to decode JSON:
 
 class TestSelectEndpoints(unittest.TestCase):
     def setUp(self):
-        populate_database()
+        pass
 
     def tearDown(self):
         purge_database()
@@ -243,8 +243,38 @@ class TestSelectEndpoints(unittest.TestCase):
             400,
         )
 
+        # Can the SQL-receptionist handle empty values?
+        for database_schema in CONFIG["data"]:
+            database_name = to_lower_snake_case(database_schema["dbname"])
+            for table_schema in database_schema["tables"]:
+                table_name = to_lower_snake_case(table_schema["tableName"])
+                # @TODO read/write perms
+                # @TODO select param
+                # @TODO order_by
+
+                # main data
+                response = requests.get(
+                    f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}?SELECT=*&ORDER_BY=ASC",
+                    headers={"Origin": environ["MAIN_URL"]},
+                    cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+                )
+                assert_data_response(self, response, table_schema)
+
+                # descriptors
+                if "descriptors" in table_schema:
+                    for descriptor_schema in table_schema["descriptors"]:
+                        response = requests.get(
+                            f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/descriptors/{to_lower_snake_case(descriptor_schema["name"])}?SELECT=*&ORDER_BY=ASC",
+                            headers={"Origin": environ["MAIN_URL"]},
+                            cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+                        )
+                        assert_data_response(self, response, descriptor_schema)
+
+        populate_database()
+
         # @TODO verify invalid URLs
 
+        # Test on a mock dataset
         for database_schema in CONFIG["data"]:
             database_name = to_lower_snake_case(database_schema["dbname"])
             for table_schema in database_schema["tables"]:
