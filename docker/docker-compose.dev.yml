@@ -37,6 +37,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - wywy_website_master_database-sql_receptionist
     # compile and run the application.
     # Do not close the container on error.
     command: bash -c "make clean && make && exec valgrind ./app"
@@ -126,6 +128,10 @@ services:
       - ssh_private_key
       - ssh_backup_public_key
     command: ./entrypoint.sh
+
+networks:
+  wywy_website_master_database-sql_receptionist:
+    name: wywy_website_master_database-sql_receptionist
 
 secrets:
   admin:
