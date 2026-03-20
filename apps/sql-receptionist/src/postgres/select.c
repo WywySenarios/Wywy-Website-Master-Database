@@ -60,6 +60,7 @@ void construct_select_query(struct select_options *options, char *buffer,
   cur += n;
 
   // columns
+  // id column
   if (options->id_column) {
     if (remaining_size < 3) {
       errno = ENOMEM;
@@ -70,6 +71,19 @@ void construct_select_query(struct select_options *options, char *buffer,
     *cur++ = 'd';
     *cur++ = ',';
   }
+
+  // primary tag column
+  if (options->primary_tag) {
+    n = strlen("primary_tag,");
+    if (remaining_size < n) {
+      errno = ENOMEM;
+      return;
+    }
+    remaining_size -= n;
+    memcpy(cur, "primary_tag,", n);
+    cur += n;
+  }
+
   for (int i = 0; i < options->schema_count; i++) {
     size_t column_name_size = strlen(options->schema[i].name);
     size_t temp;

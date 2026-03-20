@@ -32,6 +32,10 @@ struct select_options {
      */
     const int id_column;
     /**
+     * @param primary_tag Whether or not the primary_tag column is a part of this table.
+     */
+    const int primary_tag;
+    /**
      * @param limit The upper bound of the number of entries to return. Limit is directly injected into the SELECT query. The query will not be upper bounded if limit is set to a negative integer.
      */
     const int limit;

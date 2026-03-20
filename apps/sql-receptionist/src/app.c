@@ -550,6 +550,7 @@ void *handle_client(void *arg) {
                                        table->schema,
                                        table->schema_count,
                                        1,
+                                       table->tagging ? 1 : 0,
                                        SELECT_DEFAULT_LIMIT,
                                        0};
 
