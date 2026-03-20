@@ -36,7 +36,11 @@ char *json_to_string(const json_t *value) {
   case JSON_NULL:
     output_size = 5;
     output = malloc(5);
-    memcpy(output, "NULL", 5);
+    output[0] = 'N';
+    output[1] = 'U';
+    output[2] = 'L';
+    output[3] = 'L';
+    output[4] = '\0';
     return output;
   default:
     return NULL;
