@@ -88,9 +88,12 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
       } else {
         fprintf(stderr, "CRITICAL: Failed to trap column suffix.\n");
         status = -1;
+        regfree(&suffix_preg);
         goto construct_validate_query_end;
       }
     }
+
+    regfree(&suffix_preg);
 
     column_name = malloc(column_name_size);
 
