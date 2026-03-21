@@ -4,6 +4,7 @@
 #define HEADER_CONFIG
 #include "config.h"
 #endif
+#define MAX_SQL_RETURN_LENGTH 101
 
 struct insert_options {
     /**

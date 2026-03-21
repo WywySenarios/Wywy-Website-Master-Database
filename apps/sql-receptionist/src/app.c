@@ -764,14 +764,17 @@ void *handle_client(void *arg) {
       ExecStatusType sql_query_status;
       bool sql_query_succesful = true; // innocent until proven guilty
       bool unexpected_return = false;  // innocent until proven guitly
-      const char *value = NULL;
+      char value[MAX_SQL_RETURN_LENGTH];
+      const char *temp_value = NULL;
 
       sql_query("BEGIN;", &res, conn);
       sql_query_succesful &=
           res && (sql_query_status = PQresultStatus(res)) == PGRES_COMMAND_OK;
-
       if (!sql_query_succesful)
         goto build_sql_response;
+      PQclear(res);
+      res = NULL;
+
       switch (validate_and_insert_into(&options, entry, &res, conn)) {
       case 0:
         if (errno) {
@@ -791,20 +794,28 @@ void *handle_client(void *arg) {
                        "the schema.");
         goto schema_mismatch_end;
       }
-
       sql_query_succesful &=
           res && (sql_query_status = PQresultStatus(res)) == PGRES_TUPLES_OK;
       if (!sql_query_succesful)
         goto build_sql_response;
       if (PQntuples(res) != 1 || PQnfields(res) != 1 ||
-          !(value = PQgetvalue(res, 0, 0)))
+          !(temp_value = PQgetvalue(res, 0, 0))) {
         unexpected_return = true;
+        goto build_sql_response;
+      }
+      int value_len = strlen(temp_value);
+      memcpy(value, temp_value, value_len);
+      value[value_len] = '\0';
+      PQclear(res);
+      res = NULL;
 
       sql_query("COMMIT;", &res, conn);
       sql_query_succesful &=
           res && (sql_query_status = PQresultStatus(res)) == PGRES_COMMAND_OK;
 
     build_sql_response:
+      PQclear(res);
+      res = NULL;
       if (!sql_query_succesful) {
         const char *status_message = PQresStatus(sql_query_status);
         const char *error_message = PQerrorMessage(conn);
