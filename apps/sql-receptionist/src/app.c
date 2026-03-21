@@ -100,10 +100,14 @@ static int tag_groups_schema_count = 2;
  * @param response_len The response length variable to pass into
  * build_response... .
  */
-void generic_select_query_and_respond(char *database_name, char *query,
+void generic_select_query_and_respond(const char *database_name, char *query,
                                       PGresult **res, PGconn **conn,
                                       char **response, size_t *response_len) {
-  ExecStatusType sql_query_status = sql_query(database_name, query, res, conn);
+
+  if (!*conn)
+    *conn = connect_db(database_name);
+
+  ExecStatusType sql_query_status = sql_query(query, res, *conn);
   if (sql_query_status != PGRES_TUPLES_OK &&
       sql_query_status != PGRES_COMMAND_OK) { // if the query is not successful,
     build_response_printf(500, response, response_len,
@@ -750,10 +754,30 @@ void *handle_client(void *arg) {
         goto schema_mismatch_end;
       }
 
-      switch (construct_validate_query(entry, schema, schema_count, &query,
-                                       table_name, primary_column_name,
-                                       duplicate_column_name)) {
+      // construct & validate query as we go
+      struct insert_options options = {
+          table_name,           schema, schema_count, 0, primary_column_name,
+          duplicate_column_name};
+
+      conn = connect_db(database_name);
+      ExecStatusType sql_query_status;
+      bool sql_query_succesful = true; // innocent until proven guilty
+      bool unexpected_return = false;  // innocent until proven guitly
+      const char *value = NULL;
+
+      sql_query("BEGIN;", &res, conn);
+      sql_query_succesful &=
+          res && (sql_query_status = PQresultStatus(res)) == PGRES_COMMAND_OK;
+
+      if (!sql_query_succesful)
+        goto build_sql_response;
+      switch (validate_and_insert_into(&options, entry, &res, conn)) {
       case 0:
+        if (errno) {
+          perror("INSERT query");
+          errno = 0;
+        }
+
         build_response(400, &response, &response_len,
                        "The given entry does not "
                        "conform to the schema.");
@@ -761,24 +785,40 @@ void *handle_client(void *arg) {
       case 1:
         break;
       default:
-        build_response(
-            500, &response, &response_len,
-            "Something went wrong while checking your entry with the schema.");
+        build_response(500, &response, &response_len,
+                       "Something went wrong while checking your entry with "
+                       "the schema.");
         goto schema_mismatch_end;
       }
 
-      ExecStatusType sql_query_status =
-          sql_query(database_name, query, &res, &conn);
-      if (sql_query_status != PGRES_COMMAND_OK &&
-          sql_query_status != PGRES_TUPLES_OK) {
+      sql_query_succesful &=
+          res && (sql_query_status = PQresultStatus(res)) == PGRES_TUPLES_OK;
+      if (!sql_query_succesful)
+        goto build_sql_response;
+      if (PQntuples(res) != 1 || PQnfields(res) != 1 ||
+          !(value = PQgetvalue(res, 0, 0)))
+        unexpected_return = true;
+
+      sql_query("COMMIT;", &res, conn);
+      sql_query_succesful &=
+          res && (sql_query_status = PQresultStatus(res)) == PGRES_COMMAND_OK;
+
+    build_sql_response:
+      if (!sql_query_succesful) {
+        const char *status_message = PQresStatus(sql_query_status);
+        const char *error_message = PQerrorMessage(conn);
+
+        printf("ERROR: %s, %s\n", status_message, error_message);
+
         build_response_printf(500, &response, &response_len,
-                              strlen(PQresStatus(sql_query_status)) + 2 +
-                                  strlen(PQerrorMessage(conn)) + 1,
-                              "%s: %s", PQresStatus(sql_query_status),
-                              PQerrorMessage(conn));
-      } else {
-        build_response(200, &response, &response_len, PQgetvalue(res, 0, 0));
-      }
+                              strlen(status_message) + 2 +
+                                  strlen(error_message) + 1,
+                              "%s: %s", status_message, error_message);
+      } else if (unexpected_return) {
+        build_response(500, &response, &response_len,
+                       "Query return value is unexpectedly NULL.");
+      } else
+        build_response(200, &response, &response_len, value);
 
     schema_mismatch_end:
     post_bad_input_end:
