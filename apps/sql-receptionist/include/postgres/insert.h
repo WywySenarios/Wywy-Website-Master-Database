@@ -47,8 +47,3 @@ struct insert_options {
  * @returns Whether or not the query ran (i.e. whether or not the input data was valid).
  */
 extern int validate_and_insert_into(struct insert_options *options, json_t *entry, PGresult **res, PGconn *conn);
-
-extern int construct_validate_query(json_t *entry, struct data_column *schema,
-                             unsigned int schema_count, char **query,
-                             char *table_name,
-                             const char *primary_column_name, const char *duplicate_column_name);
