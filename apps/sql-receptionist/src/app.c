@@ -115,6 +115,7 @@ void generic_select_query_and_respond(const char *database_name, char *query,
                               strlen(PQerrorMessage(*conn)) + 1,
                           "%s: %s", PQresStatus(sql_query_status),
                           PQerrorMessage(*conn));
+    return;
   }
 
   *response = malloc(BUFFER_SIZE);
