@@ -8,7 +8,7 @@
  */
 extern size_t write_header(const int status_code, char *buffer, const size_t buffer_size);
 extern void build_response(int status_code, char **response,
-                           size_t *response_len, char *body);
+                           size_t *response_len, const char *body);
 extern void build_response_printf(int status_code, char **response,
                                   size_t *response_len, size_t text_size,
                                   const char *pattern, ...);

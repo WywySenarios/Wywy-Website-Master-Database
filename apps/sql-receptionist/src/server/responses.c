@@ -71,7 +71,7 @@ size_t write_header(const int status_code, char *buffer,
  * @param body response body string.
  */
 void build_response(int status_code, char **response, size_t *response_len,
-                    char *body) {
+                    const char *body) {
   const char *status_code_name = get_status_code_name(status_code);
 
   if (getenv("SQL_RECEPTIONIST_LOG_RESPONSES") &&
