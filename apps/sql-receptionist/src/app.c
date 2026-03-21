@@ -103,8 +103,7 @@ static int tag_groups_schema_count = 2;
 void generic_select_query_and_respond(char *database_name, char *query,
                                       PGresult **res, PGconn **conn,
                                       char **response, size_t *response_len) {
-  ExecStatusType sql_query_status =
-      sql_query(database_name, query, res, conn, global_config);
+  ExecStatusType sql_query_status = sql_query(database_name, query, res, conn);
   if (sql_query_status != PGRES_TUPLES_OK &&
       sql_query_status != PGRES_COMMAND_OK) { // if the query is not successful,
     build_response_printf(500, response, response_len,
@@ -769,7 +768,7 @@ void *handle_client(void *arg) {
       }
 
       ExecStatusType sql_query_status =
-          sql_query(database_name, query, &res, &conn, global_config);
+          sql_query(database_name, query, &res, &conn);
       if (sql_query_status != PGRES_COMMAND_OK &&
           sql_query_status != PGRES_TUPLES_OK) {
         build_response_printf(500, &response, &response_len,

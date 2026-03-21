@@ -21,8 +21,8 @@
  * @param config The global config.
  * @return The status of the query as per PQstatus().
  */
-ExecStatusType sql_query(char *dbname, char *query, PGresult **res,
-                         PGconn **conn, const struct config *global_config) {
+ExecStatusType sql_query(const char *dbname, const char *query, PGresult **res,
+                         PGconn **conn) {
   if (getenv("SQL_RECEPTIONIST_LOG_QUERIES") &&
       strcmp(getenv("SQL_RECEPTIONIST_LOG_QUERIES"), "TRUE") == 0)
     printf("Query: %s\n", query);
