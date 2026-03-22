@@ -1,0 +1,4 @@
+psycopg==3.3.2
+psycopg_binary==3.3.2
+PyYAML==6.0.3
+requests==2.32.5

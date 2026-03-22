@@ -2,47 +2,65 @@
 #define HEADER_CONFIG
 #include "config.h"
 #endif
+#include "postgres.h"
+#include "postgres/insert.h"
 #include "postgres/schema.h"
 #include "utils/format_string.h"
 #include "utils/json/json_conversion.h"
 #include "utils/regex_item.h"
+#include <errno.h>
 #include <jansson.h>
+#include <libpq-fe.h>
 #include <regex.h>
+#include <stdbool.h>
 #include <string.h>
 
-/**
- * Goes through the entry and checks for validity. Creates a query to store the
- * entry.
- * @param entry The entry to check and construct a query around.
- * @param schema The schema to check the entry against.
- * @param schema_count The size of the schema array.
- * @param query The pointer that will eventually point to the newly created
- * query.
- * @param table_name The target table's name.
- * @param primary_column_name The name of the primary column.
- * @param duplicate_column_name The name of the column that might be duplicated.
- * @returns 0 if the query is invalid, 1 if the query is valid, -1 on unexpected
- * failure.
- */
-int construct_validate_query(json_t *entry, struct data_column *schema,
-                             unsigned int schema_count, char **query,
-                             char *table_name, const char *primary_column_name,
-                             const char *duplicate_column_name) {
+#define MAX_INSERT_QUERY_SIZE 65536
+
+int validate_and_insert_into(
+    struct insert_options *options, json_t *entry, PGresult **res,
+    PGconn *conn) { // @TODO use iterators, placeholders, and a single loop to
+                    // achieve good safety, runtime, and force all schema items
+                    // to be included.
+  int status = 1;   // innocent until proven guilty
   const char *key = NULL;
   const json_t *value = NULL;
-  char *value_string = NULL;
-  size_t column_name_size = 0;
-  char *column_name = NULL;
+  char query[MAX_INSERT_QUERY_SIZE];
+  char *cur = query;
+  size_t remaining_size = MAX_INSERT_QUERY_SIZE;
+  size_t n;
 
-  size_t column_names_size = 1; // null-terminator
-  char *column_names = NULL;
-  size_t values_size = 1; // null-terminator
-  char *values = NULL;
+  // compile regex if needed
+  regex_t suffix_preg;
+  bool suffix_preg_compiled = false;
 
-  // The status (return value) of the query validation and construction.
-  int status = 1;
+  if (regcomp(&suffix_preg,
+              "(_comments|_latlong_accuracy|_altitude_accuracy|_altitude)$",
+              REG_EXTENDED) == 0)
+    suffix_preg_compiled = true;
+  else {
+    errno = EDOM;
+    status = 0;
+    goto insert_end;
+  }
 
-  // check for conformance
+  // write in the beginning of the query
+  // we can guarentee this fits into the query buffer because it's the first
+  // text to be inserted and is a known constant.
+  n = snprintf(cur, remaining_size, "INSERT INTO %s (", options->table_name);
+  if (errno) {
+    status = 0;
+    goto insert_end;
+  }
+  if (remaining_size < n) {
+    errno = ENOMEM;
+    status = 0;
+    goto insert_end;
+  }
+  remaining_size -= n;
+  cur += n;
+
+  // check for conformance & write in column names
   json_object_foreach(entry, key, value) {
     // ignore keys with null values. This allows child key existence to be
     // detected while also preventing the need for extra NULL checks down the
@@ -50,31 +68,18 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
     if (json_is_null(value))
       continue;
 
-    // whether or not the value has passed validation.
+    // skip id column (rely on auto-increment)
+    if (strcmp(key, "id") == 0)
+      continue;
     bool validated = false;
-    value_string = json_to_string(value);
-
-    column_name_size = strlen(key) + 1;
 
     // column type & suffix related variables. These need not be freed.
     enum column_type column_type = DATA;
-    regex_t suffix_preg;
     regmatch_t suffix_matches[1 + 1];
 
     // check if the column is directly inside the schema or not.
-    if (regcomp(&suffix_preg,
-                "(_comments|_latlong_accuracy|_altitude_accuracy|_altitude)$",
-                REG_EXTENDED) != 0) {
-      status = -1;
-      goto construct_validate_query_end;
-    }
-
-    // regular column (one that's in the schema)
-    if (regexec(&suffix_preg, key, 2, suffix_matches, 0) == REG_NOMATCH) {
-      column_name_size = strlen(key) + 1;
-      // special column (one that's not in the schema)
-    } else {
-      column_name_size = suffix_matches[1].rm_so;
+    // check if it's a special column (i.e. sub-column)
+    if (regexec(&suffix_preg, key, 2, suffix_matches, 0) != REG_NOMATCH) {
       const char *suffix = key + suffix_matches[1].rm_so;
 
       if (strcmp(suffix, "_comments") == 0) {
@@ -83,101 +88,73 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
         column_type = LATLONG_ACCURACY;
       } else if (strcmp(suffix, "_altitude_accuracy") == 0) {
         column_type = ALTITUDE_ACCURACY;
-      } else if (strcmp(suffix, "altitude") == 0) {
+      } else if (strcmp(suffix, "_altitude") == 0) {
         column_type = ALTITUDE;
       } else {
+        errno = EDOM;
         fprintf(stderr, "CRITICAL: Failed to trap column suffix.\n");
-        status = -1;
-        goto construct_validate_query_end;
-      }
-    }
-
-    column_name = malloc(column_name_size);
-
-    // check for malloc failures
-    if (!value_string || !column_name) {
-      status = -1;
-      goto construct_validate_query_end;
-    }
-    memcpy(column_name, key, column_name_size - 1);
-    column_name[column_name_size - 1] = '\0';
-
-    if (strcmp(column_name, "id") == 0) {
-      // skip id column (postgres autoincrement should handle it)
-      free(value_string);
-      free(column_name);
-      continue;
-
-      // @TODO make sure postgres doesn't tweak out over incorrect next keys
-      switch (regex_check("^[0-9]+$", 0, REG_EXTENDED, 0, value_string)) {
-      case 0:
         status = 0;
-        break;
-      case 1:
-        validated = true;
-        break;
-      default:
-        status = -1;
-        goto construct_validate_query_end;
+        goto insert_end;
       }
-    } else if (strcmp(column_name, "primary_tag") == 0) {
+    }
+
+    n = strlen(key);
+
+    if (remaining_size < n + 1) {
+      errno = ENOMEM;
+      status = 0;
+      goto insert_end;
+    }
+    remaining_size -= n + 1;
+    memcpy(cur, key, n);
+    // temporarily null terminate
+    *(cur + n) = '\0';
+
+    // validate entry data
+    if (strcmp(cur, "primary_tag") == 0) {
       // it's hard to validate FOREIGN KEY so we'll let Postgres take care of
       // this.
-      switch (regex_check("^[0-9]+$", 0, REG_EXTENDED, 0, value_string)) {
-      case 0:
+      if (!json_is_integer(value)) {
         status = 0;
-        break;
-      case 1:
-        validated = true;
-        break;
-      default:
-        status = -1;
-        goto construct_validate_query_end;
+        goto insert_end;
       }
-    } else
-      for (int i = 0; i < schema_count; i++) {
+    } else {
+      for (int i = 0; i < options->schema_count; i++) {
         // find which entry in the schema matches
 
-        if (str_cci_cmp(column_name, schema[i].name) == 0) {
+        if (str_cci_cmp(cur, options->schema[i].name) == 0) {
           // validate against the column schema
-          status = validate_column(value, schema[i], column_type);
-          validated = true;
-          if (!status)
-            goto construct_validate_query_end;
-          break;
+          if (!validate_column(value, options->schema[i], column_type)) {
+            status = 0;
+            goto insert_end;
+          }
+
+          goto valid_column;
         }
       }
 
-    // if the value does not have a related column,
-    if (!validated) {
       status = 0;
-      goto construct_validate_query_end;
+      goto insert_end;
     }
-    // @todo optimize
-    // add one because comma separation
-    column_names_size += strlen(key) + 1;
-    values_size +=
-        strlen(value_string) + 1; // no need to use to_snake_case: it won't
-                                  // change the length of the string.
-    free(column_name);
-    free(value_string);
-  }
-  column_name = NULL;
-  value_string = NULL;
-
-  // populate column_names & values
-
-  column_names = malloc(column_names_size);
-  values = malloc(values_size);
-
-  // catch malloc failure
-  if (!column_names || !values) {
-    status = -1;
-    goto construct_validate_query_end;
+  valid_column:
+    // convert column_name into lower_snake_case
+    to_lower_snake_case(cur);
+    cur += n;
+    *cur++ = ',';
   }
 
-  char *column_names_cur = column_names;
-  char *values_cur = values;
+  // remove trailing comma & add ") VALUES ("
+  cur--;
+  remaining_size++;
+  n = strlen(") VALUES (");
+  if (remaining_size < n) {
+    errno = ENOMEM;
+    status = 0;
+    goto insert_end;
+  }
+  remaining_size -= n;
+  memcpy(cur, ") VALUES (", n);
+  cur += n;
 
   // build the query
   json_object_foreach(entry, key, value) {
@@ -188,55 +165,49 @@ int construct_validate_query(json_t *entry, struct data_column *schema,
     if (strcmp(key, "id") == 0)
       continue;
 
-    value_string = json_to_string(value);
-
-    // catch malloc failure
-    if (!value_string) {
-      status = -1;
-      goto construct_validate_query_end;
+    n = write_json_value(value, cur, remaining_size);
+    if (remaining_size <= n) {
+      errno = ENOMEM;
+      status = 0;
+      goto insert_end;
     }
-    // deal with snake case later
-    memcpy(column_names_cur, key, strlen(key));
-    column_names_cur += strlen(key);
-    // add in the comma while moving the cursor forward
-    *column_names_cur++ = ',';
+    remaining_size -= n;
+    cur += n;
 
-    memcpy(values_cur, value_string, strlen(value_string));
-    values_cur += strlen(value_string);
-    // add in the comma while moving the cursor forward
-    *values_cur++ = ',';
-
-    free(value_string);
+    *cur++ = ',';
+    remaining_size--;
   }
-  value_string = NULL;
 
   // remove trailing commas
-  *--column_names_cur = '\0';
-  *--values_cur = '\0';
+  cur--;
+  remaining_size++;
 
-  // abuse the fact that to_snake_case completely ignores commas
-  to_lower_snake_case(column_names);
-
-  size_t query_size =
-      strlen("INSERT INTO  () VALUES() ON CONFLICT () DO UPDATE SET  = "
-             "EXCLUDED. RETURNING ;") +
-      strlen(table_name) + (column_names_size - 1) + (values_size - 1) +
-      strlen(primary_column_name) + 3 * strlen(duplicate_column_name) + 1;
-  *query = malloc(query_size);
-  if (!*query) {
-    status = -1;
-    goto construct_validate_query_end;
+  n = snprintf(
+      cur, remaining_size,
+      ") ON CONFLICT (%s) DO UPDATE SET %s = EXCLUDED.%s RETURNING %s;",
+      options->duplicate_column_name, options->duplicate_column_name,
+      options->duplicate_column_name, options->primary_column_name);
+  if (errno) {
+    status = 0;
+    goto insert_end;
   }
-  snprintf(*query, query_size,
-           "INSERT INTO %s (%s) VALUES(%s) ON CONFLICT (%s) DO UPDATE SET %s = "
-           "EXCLUDED.%s RETURNING %s;",
-           table_name, column_names, values, duplicate_column_name,
-           duplicate_column_name, duplicate_column_name, primary_column_name);
+  if (remaining_size <= n) {
+    errno = ENOMEM;
+    status = 0;
+    goto insert_end;
+  }
 
-construct_validate_query_end:
-  free(column_name);
-  free(value_string);
-  free(column_names);
-  free(values);
+  cur += n;
+  remaining_size -= n;
+  *cur = '\0';
+  // printf("%ld %ld\n", MAX_INSERT_QUERY_SIZE + query - cur, remaining_size);
+
+  // query database
+  sql_query(query, res, conn);
+
+insert_end:
+  if (suffix_preg_compiled)
+    regfree(&suffix_preg);
+
   return status;
 }

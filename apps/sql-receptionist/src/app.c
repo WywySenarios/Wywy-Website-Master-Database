@@ -13,6 +13,7 @@
 #endif
 #include "postgres.h"
 #include "postgres/insert.h"
+#include "postgres/select.h"
 #include "server/responses.h"
 #include "utils/format_string.h"
 #include "utils/http.h"
@@ -22,6 +23,7 @@
 #include <asm-generic/socket.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <jansson.h>
 #include <libpq-fe.h>
@@ -40,14 +42,13 @@
 #include <unistd.h>
 
 #define PORT 2523 // @todo make this configurable
-#define BUFFER_SIZE 104857600 - 1
-#define MAX_ENTRY_SIZE 1048576 - 1
+#define BUFFER_SIZE 1048576
 #define AUTH_DB_NAME "auth" // @todo make this configurable
 #define MAX_URL_SECTIONS 4  // must be 2 or larger
 #define MAX_REGEX_MATCHES 25
-#define limit "20"
 #define NUM_DATATYPES_KEYS 1
 #define MAX_PASSWORD_LENGTH 255
+#define QUERY_SIZE_LIMIT 65536
 
 int done;
 void handle_sigterm(int signal_num) {
@@ -99,93 +100,44 @@ static int tag_groups_schema_count = 2;
  * @param response_len The response length variable to pass into
  * build_response... .
  */
-void generic_select_query_and_respond(char *database_name, char *query,
+void generic_select_query_and_respond(const char *database_name, char *query,
                                       PGresult **res, PGconn **conn,
                                       char **response, size_t *response_len) {
-  ExecStatusType sql_query_status =
-      sql_query(database_name, query, res, conn, global_config);
-  if (sql_query_status == PGRES_TUPLES_OK ||
-      sql_query_status == PGRES_COMMAND_OK) { // if the query is successful,
-    // convert the query information into JSON
-    char *output = malloc(BUFFER_SIZE);       // @todo be more specific
-    char *column_names = malloc(BUFFER_SIZE); // @todo be more specific
-    char *output_arrs = malloc(BUFFER_SIZE);  // @todo be more specific
-    // catch malloc failure
-    if (!output || !column_names || !output_arrs) {
-      build_response(500, response, response_len,
-                     "Something went wrong when fetching the query results.");
-      free(output);
-      free(column_names);
-      free(output_arrs);
-      return;
-    }
 
-    column_names[0] = '\0';
-    output_arrs[0] = '\0';
+  if (!*conn)
+    *conn = connect_db(database_name);
 
-    // add in the column names
-    for (int col = 0; col < PQnfields(*res); col++) {
-      strcat(column_names, "\"");
-      strcat(column_names, PQfname(*res, col));
-      strcat(column_names, "\",");
-    }
-    // remove trailing comma
-    column_names[strlen(column_names) - 1] = '\0';
-
-    // add in "[...]," for all the arrays
-    // @todo optimize
-    for (int row = 0; row < PQntuples(*res); row++) {
-      char *entry_arr = malloc(MAX_ENTRY_SIZE);
-      strcpy(entry_arr, "[");
-
-      for (int col = 0; col < PQnfields(*res); col++) {
-        if (!PQgetisnull(*res, row, col)) {
-          int requires_quotes = 0;
-          // @todo binary search optimization
-          switch (PQftype(*res, col)) {
-          case 25:
-          case 1082:
-          case 1083:
-          case 1114:
-            requires_quotes = 1;
-            strcat(entry_arr, "\"");
-            break;
-          default:
-            requires_quotes = 0;
-            break;
-          }
-
-          strcat(entry_arr, PQgetvalue(*res, row, col));
-          if (requires_quotes) {
-            strcat(entry_arr, "\"");
-          }
-        } else
-          strcat(entry_arr, "null");
-        strcat(entry_arr, ",");
-      }
-      // remove trailing comma
-      entry_arr[strlen(entry_arr) - 1] = ']';
-
-      strcat(entry_arr, ",");
-
-      strcat(output_arrs, entry_arr);
-      free(entry_arr);
-    }
-    // remove the trailing comma
-    output_arrs[strlen(output_arrs) - 1] = '\0';
-
-    snprintf(output, BUFFER_SIZE, "{\"columns\":[%s],\"data\":[%s]}",
-             column_names, output_arrs);
-    build_response(200, response, response_len, output);
-    free(column_names);
-    free(output_arrs);
-    free(output);
-  } else {
+  ExecStatusType sql_query_status = sql_query(query, res, *conn);
+  if (sql_query_status != PGRES_TUPLES_OK &&
+      sql_query_status != PGRES_COMMAND_OK) { // if the query is not successful,
     build_response_printf(500, response, response_len,
                           strlen(PQresStatus(sql_query_status)) + 2 +
                               strlen(PQerrorMessage(*conn)) + 1,
                           "%s: %s", PQresStatus(sql_query_status),
                           PQerrorMessage(*conn));
+    return;
+  }
+
+  *response = malloc(BUFFER_SIZE);
+  *response_len = write_header(200, *response, BUFFER_SIZE);
+  if (*response_len + 1 >= BUFFER_SIZE) {
+    free(*response);
+    build_response_printf(500, response, response_len, strlen("No memory") + 1,
+                          "No memory.");
+    return;
+  }
+
+  // + 1 because the response_len is a length, not a size
+  *response_len += serialize_select_result(*res, *response + *response_len,
+                                           BUFFER_SIZE - *response_len);
+  if (errno) {
+    perror("SELECT query result serialization");
+    free(*response);
+    build_response_printf(500, response, response_len,
+                          strlen("Server-side serialization failed.") + 1,
+                          "Server-side serialization failed.");
+    errno = 0;
+    return;
   }
 }
 
@@ -329,6 +281,16 @@ void *handle_client(void *arg) {
   regex_iterator_load_target(url_regex, url);
 
   // START - check URL
+
+  // @todo handle memory?
+  // handle querystring
+  char *querystring = NULL;
+  char *path = url;
+  char *qmark = strchr(url, '?');
+  if (qmark) {
+    *qmark = '\0';           // terminate path at the first '?'
+    querystring = qmark + 1; // everything after is the querystring
+  }
 
   // look for as many url sections as possible
   for (int i = 0; i < MAX_URL_SECTIONS; i++) {
@@ -503,16 +465,6 @@ void *handle_client(void *arg) {
   }
   // END - check URL
 
-  // @todo handle memory?
-  // handle querystring
-  char *querystring = NULL;
-  char *path = url;
-  char *qmark = strchr(url, '?');
-  if (qmark) {
-    *qmark = '\0';           // terminate path at the first '?'
-    querystring = qmark + 1; // everything after is the querystring
-  }
-
   // decide what to do
   // first ensure that the method is uppercase
   // @todo verify if this is really needed
@@ -596,13 +548,16 @@ void *handle_client(void *arg) {
       regex_iterator_load_target(querystring_regex, querystring);
 
       // many of these need to be non-null:
-      char *select = NULL;
-      char *order_by = NULL;
-      char *min = NULL;
-      int min_type = -1; // 1 for inclusive, 0 for exclusive
-      char *max = NULL;
-      int max_type = -1; // 1 for inclusive, 0 for exclusive
-      char *start_index = NULL;
+      struct select_options options = {table_name,
+                                       "id",
+                                       NULL,
+                                       table->schema,
+                                       table->schema_count,
+                                       1,
+                                       table->tagging ? 1 : 0,
+                                       1,
+                                       SELECT_DEFAULT_LIMIT,
+                                       0};
 
       // read every querystring value
       // store every single valid key-value pair.
@@ -615,65 +570,15 @@ void *handle_client(void *arg) {
         valid = 0;
 
         // what type is it?
-        if (strcmp(key, "SELECT") == 0) {
-          if (strcmp(value, "*") == 0) {
-            select = "*";
-          } else {
-            for (unsigned i = 0; i < table->schema_count; i++) {
-              if (strcmp(value, (*table).schema[i].name)) {
-                select = value;
-                valid = 1;
-                break;
-              }
-            }
-          }
+        if (strcmp(key, "SELECT") == 0) { // legacy code compatability
+          valid = 1;
         } else if (strcmp(key, "ORDER_BY") == 0) {
           if (strcmp(value, "ASC") == 0) {
-            order_by = "ASC";
+            options.order_by_order = "ASC";
             valid = 1;
           } else if (strcmp(value, "DSC") == 0) {
-            order_by = "DSC";
+            options.order_by_order = "DSC";
             valid = 1;
-          }
-        } else if (strcmp(key, "MIN_INCLUSIVE") == 0) {
-          valid = regex_check("^[0-9]$", 0, REG_EXTENDED, 0, value);
-          if (valid == 1) {
-            if (min_type == -1) {
-              min = value;
-              min_type = 1;
-            } else {
-              valid = 0;
-            }
-          }
-        } else if (strcmp(key, "MAX_INCLUSIVE") == 0) {
-          valid = regex_check("^[0-9]$", 0, REG_EXTENDED, 0, value);
-          if (valid == 1) {
-            if (max_type == -1) {
-              max = value;
-              max_type = 1;
-            } else {
-              valid = 0;
-            }
-          }
-        } else if (strcmp(key, "MIN_EXCLUSIVE") == 0) {
-          valid = regex_check("^[0-9]$", 0, REG_EXTENDED, 0, value);
-          if (valid == 1) {
-            if (min_type == -1) {
-              min = value;
-              min_type = 0;
-            } else {
-              valid = 0;
-            }
-          }
-        } else if (strcmp(key, "MAX_EXCLUSIVE") == 0) {
-          valid = regex_check("^[0-9]$", 0, REG_EXTENDED, 0, value);
-          if (valid == 1) {
-            if (max_type == -1) {
-              max = value;
-              max_type = 0;
-            } else {
-              valid = 0;
-            }
           }
         } else {
           build_response_printf(400, &response, &response_len,
@@ -685,9 +590,7 @@ void *handle_client(void *arg) {
           goto end;
         }
 
-        // } else if (strcmp(item_name, "INDEX_BY")) {
-        switch (valid) {
-        case 0:
+        if (!valid) {
           build_response_printf(400, &response, &response_len,
                                 strlen("Key value pair \"\", \"\" is "
                                        "invalid.") +
@@ -698,56 +601,29 @@ void *handle_client(void *arg) {
           free(key);
           free(value);
           goto end;
-        case 1:
-          free(key);
-          free(value);
-          break;
-        default:
-          build_response_printf(
-              400, &response, &response_len,
-              strlen("Something went wrong when checking querystring key "
-                     "\"\".") +
-                  strlen(key),
-              "Something went wrong when checking querystring key \"%s\".",
-              key);
-          free(key);
-          free(value);
-          goto end;
         }
+
+        free(key);
+        free(value);
+        regex_iterator_advance_cur(querystring_regex);
       }
 
       // are the mandatory request params valid? We need something to select and
       // an order to sort it by.
-      if (select && order_by) {
-        size_t query_len = strlen("SELECT \nFROM \nORDER BY id \nLIMIT;") +
-                           strlen(select) + strlen(table_name) +
-                           strlen(order_by) + strlen(limit);
-        query = malloc(query_len + 1);
-
-        // decide the SQL query:
-        snprintf(query, query_len,
-                 "SELECT %s\nFROM %s\nORDER BY id %s\nLIMIT %s;", select,
-                 table_name, order_by, limit);
-        // add in the optional request params
-        // @todo min/max
-        // add in the last thing
-
-        // attempt to query the database
+      if (options.order_by_order && options.limit) {
+        char query[QUERY_SIZE_LIMIT];
+        if (errno) {
+          perror("Data table SELECT query construction");
+          build_response(500, &response, &response_len,
+                         "Server-side SELECT query construction failure.");
+        }
+        construct_select_query(&options, query, QUERY_SIZE_LIMIT);
         generic_select_query_and_respond(database_name, query, &res, &conn,
                                          &response, &response_len);
       } else {
         build_response(400, &response, &response_len,
-                       "SELECT queries need a valid target (SELECT) and a "
-                       "valid ordering (ORDER BY)");
-      }
-
-      // free(select);
-      // free(order_by);
-      if (min) {
-        free(min);
-      }
-      if (max) {
-        free(max);
+                       "SELECT queries need a valid ordering (ORDER_BY) and a "
+                       "valid limit (contact dev if LIMIT is not set).");
       }
     } else {
       // user does not have read access to the respective table
@@ -880,10 +756,33 @@ void *handle_client(void *arg) {
         goto schema_mismatch_end;
       }
 
-      switch (construct_validate_query(entry, schema, schema_count, &query,
-                                       table_name, primary_column_name,
-                                       duplicate_column_name)) {
+      // construct & validate query as we go
+      struct insert_options options = {
+          table_name,           schema, schema_count, 0, primary_column_name,
+          duplicate_column_name};
+
+      conn = connect_db(database_name);
+      ExecStatusType sql_query_status;
+      bool sql_query_succesful = true; // innocent until proven guilty
+      bool unexpected_return = false;  // innocent until proven guitly
+      char value[MAX_SQL_RETURN_LENGTH];
+      const char *temp_value = NULL;
+
+      sql_query("BEGIN;", &res, conn);
+      sql_query_succesful &=
+          res && (sql_query_status = PQresultStatus(res)) == PGRES_COMMAND_OK;
+      if (!sql_query_succesful)
+        goto build_sql_response;
+      PQclear(res);
+      res = NULL;
+
+      switch (validate_and_insert_into(&options, entry, &res, conn)) {
       case 0:
+        if (errno) {
+          perror("INSERT query");
+          errno = 0;
+        }
+
         build_response(400, &response, &response_len,
                        "The given entry does not "
                        "conform to the schema.");
@@ -891,24 +790,48 @@ void *handle_client(void *arg) {
       case 1:
         break;
       default:
-        build_response(
-            500, &response, &response_len,
-            "Something went wrong while checking your entry with the schema.");
+        build_response(500, &response, &response_len,
+                       "Something went wrong while checking your entry with "
+                       "the schema.");
         goto schema_mismatch_end;
       }
-
-      ExecStatusType sql_query_status =
-          sql_query(database_name, query, &res, &conn, global_config);
-      if (sql_query_status != PGRES_COMMAND_OK &&
-          sql_query_status != PGRES_TUPLES_OK) {
-        build_response_printf(500, &response, &response_len,
-                              strlen(PQresStatus(sql_query_status)) + 2 +
-                                  strlen(PQerrorMessage(conn)) + 1,
-                              "%s: %s", PQresStatus(sql_query_status),
-                              PQerrorMessage(conn));
-      } else {
-        build_response(200, &response, &response_len, PQgetvalue(res, 0, 0));
+      sql_query_succesful &=
+          res && (sql_query_status = PQresultStatus(res)) == PGRES_TUPLES_OK;
+      if (!sql_query_succesful)
+        goto build_sql_response;
+      if (PQntuples(res) != 1 || PQnfields(res) != 1 ||
+          !(temp_value = PQgetvalue(res, 0, 0))) {
+        unexpected_return = true;
+        goto build_sql_response;
       }
+      int value_len = strlen(temp_value);
+      memcpy(value, temp_value, value_len);
+      value[value_len] = '\0';
+      PQclear(res);
+      res = NULL;
+
+      sql_query("COMMIT;", &res, conn);
+      sql_query_succesful &=
+          res && (sql_query_status = PQresultStatus(res)) == PGRES_COMMAND_OK;
+
+    build_sql_response:
+      PQclear(res);
+      res = NULL;
+      if (!sql_query_succesful) {
+        const char *status_message = PQresStatus(sql_query_status);
+        const char *error_message = PQerrorMessage(conn);
+
+        printf("ERROR: %s, %s\n", status_message, error_message);
+
+        build_response_printf(500, &response, &response_len,
+                              strlen(status_message) + 2 +
+                                  strlen(error_message) + 1,
+                              "%s: %s", status_message, error_message);
+      } else if (unexpected_return) {
+        build_response(500, &response, &response_len,
+                       "Query return value is unexpectedly NULL.");
+      } else
+        build_response(200, &response, &response_len, value);
 
     schema_mismatch_end:
     post_bad_input_end:
