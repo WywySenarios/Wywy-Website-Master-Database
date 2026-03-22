@@ -12,6 +12,59 @@
 #include <string.h>
 #include <sys/types.h>
 
+#define decrease_remaining_size(size)                                          \
+  ({                                                                           \
+    n = size;                                                                  \
+    if (remaining_size < n) {                                                  \
+      errno = ENOMEM;                                                          \
+      return;                                                                  \
+    }                                                                          \
+    remaining_size -= n;                                                       \
+  })
+
+#define cur_memcpy(str)                                                        \
+  ({                                                                           \
+    decrease_remaining_size(strlen(str));                                      \
+    memcpy(cur, str, n);                                                       \
+    cur += n;                                                                  \
+  })
+
+#define cur_write_table_name()                                                 \
+  ({                                                                           \
+    decrease_remaining_size(table_name_len);                                   \
+    memcpy(cur, options->table_name, table_name_len);                          \
+    to_lower_snake_case_n(cur, table_name_len);                                \
+    cur += table_name_len;                                                     \
+  })
+
+#define cur_write_column_name()                                                \
+  ({                                                                           \
+    decrease_remaining_size(strlen(options->schema[i].name));                  \
+    memcpy(cur, options->schema[i].name, n);                                   \
+    to_lower_snake_case_n(cur, n);                                             \
+    cur += n;                                                                  \
+  })
+
+#define cur_write_full_column_name()                                           \
+  ({                                                                           \
+    decrease_remaining_size(table_name_len + 1);                               \
+    memcpy(cur, options->table_name, table_name_len);                          \
+    to_lower_snake_case_n(cur, table_name_len);                                \
+    cur += table_name_len;                                                     \
+    *cur++ = '.';                                                              \
+    decrease_remaining_size(strlen(options->schema[i].name));                  \
+    memcpy(cur, options->schema[i].name, n);                                   \
+    to_lower_snake_case_n(cur, n);                                             \
+    cur += n;                                                                  \
+  })
+
+// @TODO optimize cur_append
+#define cur_append(character)                                                  \
+  ({                                                                           \
+    decrease_remaining_size(1);                                                \
+    *cur++ = character;                                                        \
+  })
+
 size_t select_query_size(struct select_options *options) {
   // do not validate options.
   size_t query_size = strlen("SELECT  FROM \nORDER BY  \nLIMIT ;") +
@@ -48,40 +101,27 @@ void construct_select_query(struct select_options *options, char *buffer,
   char *cur = buffer;
   size_t n = 0;
   size_t remaining_size = buffer_size;
+  const int table_name_len = strlen(options->table_name);
 
   // construct query
-  n = strlen("SELECT ");
-  if (remaining_size < n) {
-    errno = ENOMEM;
-    return;
-  }
-  remaining_size -= n;
-  memcpy(cur, "SELECT ", n);
-  cur += n;
+  cur_memcpy("SELECT ");
 
   // columns
   // id column
   if (options->id_column) {
-    if (remaining_size < 3) {
-      errno = ENOMEM;
-      return;
-    }
-    remaining_size -= 3;
-    *cur++ = 'i';
-    *cur++ = 'd';
-    *cur++ = ',';
+    cur_write_table_name();
+    cur_memcpy(".id,");
   }
 
   // primary tag column
   if (options->primary_tag) {
-    n = strlen("primary_tag,");
-    if (remaining_size < n) {
-      errno = ENOMEM;
-      return;
+    if (options->transform_tag_names) {
+      cur_write_table_name();
+      cur_memcpy("_tag_names.tag_name AS primary_tag,");
+    } else {
+      cur_write_table_name();
+      cur_memcpy(".primary_tag,");
     }
-    remaining_size -= n;
-    memcpy(cur, "primary_tag,", n);
-    cur += n;
   }
 
   for (int i = 0; i < options->schema_count; i++) {
@@ -92,86 +132,56 @@ void construct_select_query(struct select_options *options, char *buffer,
         0) { // special geodetic point logic
       // ST_AsText([main_column]), [latlong_accuracy], [altitude],
       // [altitude_accuracy],
-      n = 5 * column_name_size + strlen("ST_AsText") + strlen(" AS ") +
-          strlen("_latlong_accuracy") + strlen("_altitude") +
-          strlen("_altitude_accuracy") + 4;
-      if (remaining_size < n) {
-        errno = ENOMEM;
-        return;
-      }
-      remaining_size -= n;
       // main column
-      memcpy(cur, "ST_AsText(", temp = strlen("ST_AsText("));
-      cur += temp;
-      memcpy(cur, options->schema[i].name, column_name_size);
-      to_lower_snake_case_n(cur, column_name_size);
-      cur += column_name_size;
-      *cur++ = ')';
-      *cur++ = ' ';
-      *cur++ = 'A';
-      *cur++ = 'S';
-      *cur++ = ' ';
-      memcpy(cur, options->schema[i].name, column_name_size);
-      to_lower_snake_case_n(cur, column_name_size);
-      cur += column_name_size;
-      *cur++ = ',';
+      cur_memcpy("ST_AsText(");
+      cur_write_full_column_name();
+      cur_memcpy(") AS ");
+      cur_write_column_name();
+      cur_append(',');
+
       // latlong_accuracy
-      memcpy(cur, options->schema[i].name, column_name_size);
-      to_lower_snake_case_n(cur, column_name_size);
-      cur += column_name_size;
-      memcpy(cur, "_latlong_accuracy", temp = strlen("_latlong_accuracy"));
-      cur += temp;
-      *cur++ = ',';
+      cur_write_full_column_name();
+      cur_memcpy("_latlong_accuracy,");
+
       // altitude
-      memcpy(cur, options->schema[i].name, column_name_size);
-      to_lower_snake_case_n(cur, column_name_size);
-      cur += column_name_size;
-      memcpy(cur, "_altitude", temp = strlen("_altitude"));
-      cur += temp;
-      *cur++ = ',';
+      cur_write_full_column_name();
+      cur_memcpy("_altitude,");
+
       // altitude_accuracy
-      memcpy(cur, options->schema[i].name, column_name_size);
-      to_lower_snake_case_n(cur, column_name_size);
-      cur += column_name_size;
-      memcpy(cur, "_altitude_accuracy", temp = strlen("_altitude_accuracy"));
-      cur += temp;
-      *cur++ = ',';
+      cur_write_full_column_name();
+      cur_memcpy("_altitude_accuracy,");
     } else {
-      if (remaining_size < (n = column_name_size + 1)) {
-        errno = ENOMEM;
-        return;
-      }
-      remaining_size -= n;
-      memcpy(cur, options->schema[i].name, column_name_size);
-      to_lower_snake_case_n(cur, column_name_size);
-      cur += column_name_size;
-      *cur++ = ',';
+      cur_write_full_column_name();
+      cur_append(',');
     }
 
     // comments column
     if (options->schema[i].comments) {
-      n = column_name_size + strlen("_comments") + 1;
-      if (remaining_size < n) {
-        errno = ENOMEM;
-        return;
-      }
-      remaining_size -= n;
-      memcpy(cur, options->schema[i].name, column_name_size);
-      to_lower_snake_case_n(cur, column_name_size);
-      cur += column_name_size;
-      memcpy(cur, "_comments", temp = strlen("_comments"));
-      cur += temp;
-      *cur++ = ',';
+      cur_write_full_column_name();
+      cur_memcpy("_comments,");
     }
   }
 
   // get rid of trailing comma
   cur--;
   remaining_size++;
+  cur_memcpy(" FROM ");
+  cur_write_table_name();
 
-  n = snprintf(cur, remaining_size, " FROM %s ORDER BY %s %s LIMIT %d;",
-               options->table_name, options->order_by_column,
-               options->order_by_order, options->limit);
+  // JOINs
+  if (options->primary_tag && options->transform_tag_names) {
+    cur_memcpy(" LEFT JOIN ");
+    cur_write_table_name();
+    cur_memcpy("_tag_names ON ");
+    cur_write_table_name();
+    cur_memcpy(".primary_tag=");
+    cur_write_table_name();
+    cur_memcpy("_tag_names.id");
+  }
+
+  n = snprintf(cur, remaining_size, " ORDER BY %s %s LIMIT %d;",
+               options->order_by_column, options->order_by_order,
+               options->limit);
   if (n < 0 || errno == EILSEQ) {
     errno = EILSEQ;
     return;
@@ -201,12 +211,7 @@ void construct_select_query(struct select_options *options, char *buffer,
   }
 
   // null termination
-  if (remaining_size < 1) {
-    errno = ENOMEM;
-    return;
-  }
-  remaining_size--;
-  *cur++ = '\0';
+  cur_append('\0');
 }
 
 int serialize_select_result(const PGresult *res, char *buffer,

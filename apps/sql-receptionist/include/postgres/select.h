@@ -36,6 +36,11 @@ struct select_options {
      */
     const int primary_tag;
     /**
+     * Whether or not the primary tag column should be transformed to represent the tag names instead of the tag ID.
+     * @param transform_tag_names
+     */
+    const int transform_tag_names;
+    /**
      * @param limit The upper bound of the number of entries to return. Limit is directly injected into the SELECT query. The query will not be upper bounded if limit is set to a negative integer.
      */
     const int limit;
