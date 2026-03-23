@@ -16,7 +16,7 @@ struct select_options {
      */
     const char *order_by_column;
     /**
-     * @param order_by_order ASC or DSC.
+     * @param order_by_order ASC or DESC.
      */
     const char *order_by_order;
     /**

@@ -576,8 +576,8 @@ void *handle_client(void *arg) {
           if (strcmp(value, "ASC") == 0) {
             options.order_by_order = "ASC";
             valid = 1;
-          } else if (strcmp(value, "DSC") == 0) {
-            options.order_by_order = "DSC";
+          } else if (strcmp(value, "DESC") == 0) {
+            options.order_by_order = "DESC";
             valid = 1;
           }
         } else {
