@@ -853,8 +853,11 @@ void *handle_client(void *arg) {
 end:
   // send HTTP response to client
   // @TODO determine if NULL checks are necessary
-  if (response && *response && response_len)
+  if (response && *response && response_len) {
+    if (strcmp(getenv("SQL_RECEPTIONIST_LOG_RESPONSES"), "TRUE") == 0)
+      printf("Response: %s\n", response);
     send(client_fd, *&response, *&response_len, 0);
+  }
   close(client_fd);
 
   free(buffer);
