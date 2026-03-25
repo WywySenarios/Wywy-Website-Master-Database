@@ -5,12 +5,12 @@ import requests
 import datetime
 import re
 from os import environ
-from ..config import CONFIG
-from ..Wywy_Website_Types import DataColumn, EntryTableData, DescriptorInfo, TableInfo
-from ..constants import SQL_RECEPTIONIST_URL, SQL_RECEPTIONIST_AUTH_COOKIES
-from ..utils import to_lower_snake_case
-from ..database.purge import purge_database
-from ..database.populate import populate_database
+from config import CONFIG
+from Wywy_Website_Types import DataColumn, EntryTableData, DescriptorInfo, TableInfo
+from constants import SQL_RECEPTIONIST_URL, SQL_RECEPTIONIST_AUTH_COOKIES
+from utils import to_lower_snake_case
+from testing_helpers.purge import purge_database
+from testing_helpers.populate import populate_database
 from typing import List
 
 
