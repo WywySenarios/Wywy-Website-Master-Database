@@ -160,6 +160,9 @@ void construct_select_query(struct select_options *options, char *buffer,
 
   // null termination
   cur_append('\0');
+
+end:
+  return;
 }
 
 int serialize_select_result(const PGresult *res, char *buffer,

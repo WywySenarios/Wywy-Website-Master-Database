@@ -7,7 +7,7 @@
     n = size;                                                                  \
     if (remaining_size < n) {                                                  \
       errno = ENOMEM;                                                          \
-      return;                                                                  \
+      goto end;                                                                  \
     }                                                                          \
     remaining_size -= n;                                                       \
   })
