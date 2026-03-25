@@ -27,10 +27,10 @@
     cur += table_name_len;                                                     \
   })
 
-#define cur_write_column_name()                                                \
+#define cur_write_column_name(column_name)                                     \
   ({                                                                           \
-    decrease_remaining_size(strlen(options->schema[i].name));                  \
-    memcpy(cur, options->schema[i].name, n);                                   \
+    decrease_remaining_size(strlen(column_name));                              \
+    memcpy(cur, column_name, n);                                               \
     to_lower_snake_case_n(cur, n);                                             \
     cur += n;                                                                  \
   })

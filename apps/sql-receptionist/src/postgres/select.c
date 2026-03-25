@@ -84,7 +84,7 @@ void construct_select_query(struct select_options *options, char *buffer,
       cur_memcpy("ST_AsText(");
       cur_write_full_column_name();
       cur_memcpy(") AS ");
-      cur_write_column_name();
+      cur_write_column_name(options->schema[i].name);
       cur_append(',');
 
       // latlong_accuracy
