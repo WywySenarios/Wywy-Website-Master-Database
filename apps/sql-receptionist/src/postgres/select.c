@@ -1,6 +1,9 @@
 #ifndef HEADER_CONFIG
 #define HEADER_CONFIG
 #include "config.h"
+#endif
+#ifndef CUR_LIB
+#define CUR_LIB
 #include "utils/cur.h"
 #endif
 #include "libpq-fe.h"
