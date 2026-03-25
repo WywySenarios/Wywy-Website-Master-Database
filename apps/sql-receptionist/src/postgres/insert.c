@@ -24,13 +24,23 @@
 #define LARGEST_COLUMN_NAME_SUFFIX strlen("_altitude_accuracy")
 
 // does NOT validate datatypes
+#define write_and_validate_column(column_name)                                 \
+  ({                                                                           \
+    current_column_name = cur;                                                 \
+    cur_write_column_name(column_name);                                        \
+    current_item = json_object_getn(entry, current_column_name,                \
+                                    cur - current_column_name);                \
+    if (!current_item) {                                                       \
+      goto end;                                                                \
+    }                                                                          \
+  })
 #define write_and_validate_child_column_name(column_name, column_suffix)       \
   ({                                                                           \
     current_column_name = cur;                                                 \
     cur_write_column_name(column_name);                                        \
     cur_memcpy(column_suffix);                                                 \
     current_item = json_object_getn(entry, current_column_name,                \
-                                    cur - current_column_name - 1);            \
+                                    cur - current_column_name);                \
     if (!current_item) {                                                       \
       goto end;                                                                \
     }                                                                          \
@@ -94,9 +104,7 @@ int validate_and_insert_into(
 
   for (int i = 0; i < options->schema_count; i++) {
     // @TODO add optionality
-    current_column_name = cur;
-    cur_write_column_name(options->schema[i].name);
-    current_item = json_object_getn(entry, current_column_name, n);
+    write_and_validate_column(options->schema[i].name);
     validate_column(current_item, options->schema[i], DATA);
     columns_consumed++;
 
