@@ -56,12 +56,10 @@
     cur += n;                                                                  \
   })
 
-int validate_and_insert_into(
-    struct insert_options *options, json_t *entry, PGresult **res,
-    PGconn *conn) { // @TODO use iterators, placeholders, and a single loop to
-                    // achieve good safety, runtime, and force all schema items
-                    // to be included.
-  int status = 0;   // innocent until proven guilty
+int validate_and_insert_into(struct insert_options *options, json_t *entry,
+                             PGresult **res, PGconn *conn) {
+  // @TODO use placeholders
+  int status = 0; // innocent until proven guilty
   const char *key = NULL;
   const json_t *value = NULL;
   char query[MAX_INSERT_QUERY_SIZE];
@@ -105,30 +103,44 @@ int validate_and_insert_into(
   for (int i = 0; i < options->schema_count; i++) {
     // @TODO add optionality
     write_and_validate_column(options->schema[i].name);
-    validate_column(current_item, options->schema[i], DATA);
+    if (!validate_column(current_item, options->schema[i], DATA)) {
+      return 0;
+    }
+    cur_append(',');
     columns_consumed++;
 
     // enforce geodetic point child columns
     if (strcmp(options->schema[i].datatype, "geodetic point") == 0) {
       write_and_validate_child_column_name(options->schema[i].name,
                                            "_latlong_accuracy,");
-      validate_column(current_item, options->schema[i], LATLONG_ACCURACY);
+      if (!validate_column(current_item, options->schema[i], LATLONG_ACCURACY))
+        return 0;
       write_and_validate_child_column_name(options->schema[i].name,
                                            "_altitude,");
-      validate_column(current_item, options->schema[i], ALTITUDE);
+      if (!validate_column(current_item, options->schema[i], ALTITUDE))
+        return 0;
       write_and_validate_child_column_name(options->schema[i].name,
                                            "_altitude_accuracy,");
-      validate_column(current_item, options->schema[i], ALTITUDE_ACCURACY);
+      if (!validate_column(current_item, options->schema[i], ALTITUDE_ACCURACY))
+        return 0;
 
       columns_consumed += 3;
     }
 
-    // enforce columns (not optional?, but can be empty)
+    // enforce columns (optional)
     if (options->schema[i].comments) {
-      write_and_validate_child_column_name(options->schema[i].name,
-                                           "_comments,");
-      validate_column(current_item, options->schema[i], COMMENTS);
-      columns_consumed++;
+
+      current_column_name = cur;
+      cur_write_column_name(options->schema[i].name);
+      cur_memcpy("_comments");
+      current_item = json_object_getn(entry, current_column_name,
+                                      cur - current_column_name);
+
+      if (current_item) {
+        columns_consumed++;
+        if (!validate_column(current_item, options->schema[i], COMMENTS))
+          return 0;
+      }
     }
   }
 
