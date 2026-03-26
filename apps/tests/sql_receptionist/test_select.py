@@ -57,6 +57,11 @@ Failed to decode JSON:
     column_name_iterator = iter(data["columns"])
     # ID column
     test_object.assertEqual(next(column_name_iterator), "id")
+
+    # primary_tag
+    if item_schema.get("tagging", False):
+        test_object.assertEqual(next(column_name_iterator), "primary_tag")
+
     for column in column_schema:
         column_name = to_lower_snake_case(column["name"])
         test_object.assertEqual(next(column_name_iterator), column_name)
@@ -98,6 +103,11 @@ Failed to decode JSON:
 
         # skip ID column
         next(row_iterator)
+
+        # primary_tag
+        if item_schema.get("tagging", False):
+            # @TODO validate primary_tag value
+            next(row_iterator)
 
         for i in range(len(column_schema)):
             # assume it is impossible for the sql-receptionist to select the wrong table's data
