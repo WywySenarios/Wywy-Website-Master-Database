@@ -42,7 +42,7 @@ services:
       - default
     # compile and run the application.
     # Do not close the container on error.
-    command: bash -c "make clean && make && exec valgrind --leak-check=yes --show-leak-kinds=all ./app"
+    command: bash -c "make clean && make && exec valgrind --leak-check=yes --show-leak-kinds=definite ./app"
 
   create_tables:
     tty: true
