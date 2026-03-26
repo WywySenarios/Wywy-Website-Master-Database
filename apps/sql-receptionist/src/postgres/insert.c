@@ -177,7 +177,7 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
     while (*temp_cur != ',' && *temp_cur != ')')
       temp_cur++;
     current_item = json_object_getn(entry, current_column_name,
-                                    current_column_name - temp_cur);
+                                    temp_cur - current_column_name);
     current_column_name = temp_cur + 1;
     cur_write_json_value(current_item);
     cur_append(',');
