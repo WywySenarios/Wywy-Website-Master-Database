@@ -133,6 +133,7 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
       current_column_name = cur;
       cur_write_column_name(options->schema[i].name);
       cur_memcpy("_comments");
+
       current_item = json_object_getn(entry, current_column_name,
                                       cur - current_column_name);
 
@@ -140,6 +141,12 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
         columns_consumed++;
         if (!validate_column(current_item, options->schema[i], COMMENTS))
           return 0;
+        cur_append(',');
+      } else {
+        // pull back cur
+        n = strlen(options->schema[i].name) + strlen("_comments");
+        remaining_size += n;
+        cur -= n;
       }
     }
   }
