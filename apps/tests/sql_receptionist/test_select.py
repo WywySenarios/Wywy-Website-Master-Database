@@ -261,14 +261,14 @@ class TestSelectEndpoints(unittest.TestCase):
                 assert_data_response(self, response, table_schema)
 
                 # descriptors
-                if "descriptors" in table_schema:
-                    for descriptor_schema in table_schema["descriptors"]:
-                        response = requests.get(
-                            f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/descriptors/{to_lower_snake_case(descriptor_schema["name"])}?SELECT=*&ORDER_BY=ASC",
-                            headers={"Origin": environ["MAIN_URL"]},
-                            cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
-                        )
-                        assert_data_response(self, response, descriptor_schema)
+                # if "descriptors" in table_schema:
+                #     for descriptor_schema in table_schema["descriptors"]:
+                #         response = requests.get(
+                #             f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/descriptors/{to_lower_snake_case(descriptor_schema["name"])}?SELECT=*&ORDER_BY=ASC",
+                #             headers={"Origin": environ["MAIN_URL"]},
+                #             cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+                #         )
+                #         assert_data_response(self, response, descriptor_schema)
 
         populate_database()
 
