@@ -156,6 +156,9 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
     return 0;
   }
 
+  // the entry is now considered as valid, we can commit to malloc'ing memory
+  // it might be optimizeable by using a dynamic memory pool
+
   // remove trailing comma & add ") VALUES ("
   cur--;
   remaining_size++;
