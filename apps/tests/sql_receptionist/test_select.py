@@ -21,7 +21,11 @@ def assert_data_response(
 ) -> EntryTableData:
     column_schema: List[DataColumn] = item_schema["schema"]
 
-    test_object.assertEqual(response.status_code, 200, "Data fetch response not OK.")
+    test_object.assertEqual(
+        response.status_code,
+        200,
+        f"Data fetch to {response.url} response not OK: {response.text}",
+    )
 
     try:
         data = response.json()
