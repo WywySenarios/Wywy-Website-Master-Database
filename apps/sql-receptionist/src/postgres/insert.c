@@ -24,26 +24,20 @@
 #define LARGEST_COLUMN_NAME_SUFFIX strlen("_altitude_accuracy")
 
 // does NOT validate datatypes
-#define write_and_validate_column(column_name)                                 \
+#define write_and_access_column(column_name)                                   \
   ({                                                                           \
     current_column_name = cur;                                                 \
     cur_write_column_name(column_name);                                        \
     current_item = json_object_getn(entry, current_column_name,                \
                                     cur - current_column_name);                \
-    if (!current_item) {                                                       \
-      goto end;                                                                \
-    }                                                                          \
   })
-#define write_and_validate_child_column_name(column_name, column_suffix)       \
+#define write_and_access_child_column_name(column_name, column_suffix)         \
   ({                                                                           \
     current_column_name = cur;                                                 \
     cur_write_column_name(column_name);                                        \
     cur_memcpy(column_suffix);                                                 \
     current_item = json_object_getn(entry, current_column_name,                \
                                     cur - current_column_name);                \
-    if (!current_item) {                                                       \
-      goto end;                                                                \
-    }                                                                          \
   })
 #define cur_write_json_value(value)                                            \
   ({                                                                           \
@@ -57,7 +51,7 @@
   })
 
 int validate_and_insert_into(struct insert_options *options, json_t *entry,
-                             PGresult **res, PGconn *conn) {
+                             PGresult **res, PGconn *conn, char *error_buffer) {
   // @TODO use placeholders
   int status = 0; // innocent until proven guilty
   const char *key = NULL;
@@ -68,6 +62,7 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   char *column_names = NULL;
   size_t remaining_size = MAX_INSERT_QUERY_SIZE;
   size_t n;
+  *error_buffer = '\0';
 
   // write in the beginning of the query
   // we can guarentee this fits into the query buffer because it's the first
@@ -89,11 +84,19 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   column_names = cur;
   // check for primary_tag
   if (options->primary_tag) {
-    current_item = json_object_get(entry, "primary_tag");
-    if (!current_item)
+    write_and_access_column("primary_tag");
+
+    if (!current_item) {
+      memcpy(error_buffer, "Missing column \"primary tag\".",
+             strlen("Missing primary tag.") + 1);
       return 0;
-    if (!json_is_integer(current_item))
+    }
+    if (!json_is_integer(current_item)) {
+      memcpy(
+          error_buffer, "Datatype datatype: primary_tag should be an integer.",
+          strlen("Datatype mismatch: primary_tag should be an integer.") + 1);
       return 0;
+    }
 
     cur_write_column_name("primary_tag");
     cur_append(',');
@@ -102,8 +105,16 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
 
   for (int i = 0; i < options->schema_count; i++) {
     // @TODO add optionality
-    write_and_validate_column(options->schema[i].name);
+    write_and_access_column(options->schema[i].name);
+    if (!current_item) {
+      snprintf(error_buffer, ERROR_BUFFER_SIZE, "Missing column \"%s\".",
+               options->schema[i].name);
+      return 0;
+    }
     if (!validate_column(current_item, options->schema[i], DATA)) {
+      snprintf(error_buffer, ERROR_BUFFER_SIZE,
+               "Datatype mismatch: column \"%s\" should be a %s.",
+               options->schema[i].name, options->schema[i].datatype);
       return 0;
     }
     cur_append(',');
@@ -111,18 +122,38 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
 
     // enforce geodetic point child columns
     if (strcmp(options->schema[i].datatype, "geodetic point") == 0) {
-      write_and_validate_child_column_name(options->schema[i].name,
-                                           "_latlong_accuracy,");
-      if (!validate_column(current_item, options->schema[i], LATLONG_ACCURACY))
+      write_and_access_child_column_name(options->schema[i].name,
+                                         "_latlong_accuracy,");
+      if (current_item && !validate_column(current_item, options->schema[i],
+                                           LATLONG_ACCURACY)) {
+        snprintf(error_buffer, ERROR_BUFFER_SIZE,
+                 "Datatype mismatch: accuracy sub-column of \"%s\" should be a "
+                 "double.",
+                 options->schema[i].name);
         return 0;
-      write_and_validate_child_column_name(options->schema[i].name,
-                                           "_altitude,");
-      if (!validate_column(current_item, options->schema[i], ALTITUDE))
+      }
+      write_and_access_child_column_name(options->schema[i].name, "_altitude,");
+      if (current_item && !validate_column(current_item, options->schema[i],
+                                           ALTITUDE_ACCURACY)) {
+        snprintf(error_buffer, ERROR_BUFFER_SIZE,
+                 "Datatype mismatch: altitude sub-column of \"%s\" should be a "
+                 "double.",
+                 options->schema[i].name);
         return 0;
-      write_and_validate_child_column_name(options->schema[i].name,
-                                           "_altitude_accuracy,");
+      }
       if (!validate_column(current_item, options->schema[i], ALTITUDE_ACCURACY))
         return 0;
+      write_and_access_child_column_name(options->schema[i].name,
+                                         "_altitude_accuracy,");
+      if (current_item && !validate_column(current_item, options->schema[i],
+                                           ALTITUDE_ACCURACY)) {
+        snprintf(error_buffer, ERROR_BUFFER_SIZE,
+                 "Datatype mismatch: altitude accuracy sub-column of \"%s\" "
+                 "should be "
+                 "a double.",
+                 options->schema[i].name);
+        return 0;
+      }
 
       columns_consumed += 3;
     }
@@ -139,8 +170,13 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
 
       if (current_item) {
         columns_consumed++;
-        if (!validate_column(current_item, options->schema[i], COMMENTS))
+        if (!validate_column(current_item, options->schema[i], COMMENTS)) {
+          snprintf(error_buffer, ERROR_BUFFER_SIZE,
+                   "Datatype mismatch: comments sub-column of \"%s\" should be "
+                   "a string.",
+                   options->schema[i].name);
           return 0;
+        }
         cur_append(',');
       } else {
         // pull back cur
@@ -153,6 +189,8 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
 
   // make sure there are no extra columns
   if (json_object_size(entry) != columns_consumed) {
+    memcpy(error_buffer, "The given entry contains erroneous values.",
+           strlen("The given entry contains erroneous values."));
     return 0;
   }
 
@@ -179,8 +217,11 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
     current_item = json_object_getn(entry, current_column_name,
                                     temp_cur - current_column_name);
     current_column_name = temp_cur + 1;
-    cur_write_json_value(current_item);
-    cur_append(',');
+    if (current_item) {
+      cur_write_json_value(current_item);
+      cur_append(',');
+    } else
+      cur_memcpy("NULL,");
   }
 
   // remove trailing comma
@@ -209,5 +250,33 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   status = 1;
 
 end:
+  if (!status && *error_buffer == '\0') {
+
+    switch (errno) {
+    case ENOMEM:
+      memcpy(error_buffer, "Memory limit exceeded.\n",
+             strlen("Memory limit exceeded.\n") + 1);
+      break;
+    case EINVAL:
+      memcpy(error_buffer, "Invalid character encoding.\n",
+             strlen("Invalid character encoding.\n") + 1);
+      break;
+    default:
+      memcpy(
+          error_buffer,
+          "Something went wrong while preparing an INSERT statement.\n",
+          strlen(
+              "Something went wrong while preparing an INSERT statement.\n") +
+              1);
+      break;
+    }
+  }
+  if (!status) {
+    if (errno) {
+      perror("lkjahsdf");
+      puts("lkjhasdlfkjhalkjshdflkjhasdf\n");
+    }
+    puts("laksjdflhasdf\n");
+  }
   return status;
 }
