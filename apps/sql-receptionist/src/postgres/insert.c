@@ -52,6 +52,21 @@
     cur += n;                                                                  \
   })
 
+#define write_next_json_value()                                                \
+  ({                                                                           \
+    temp_cur = current_column_name;                                            \
+    while (*temp_cur != ',' && *temp_cur != ')')                               \
+      temp_cur++;                                                              \
+    current_item = json_object_getn(entry, current_column_name,                \
+                                    temp_cur - current_column_name);           \
+    current_column_name = temp_cur + 1;                                        \
+    if (current_item) {                                                        \
+      cur_write_json_value(current_item);                                      \
+      cur_append(',');                                                         \
+    } else                                                                     \
+      cur_memcpy("NULL,");                                                     \
+  })
+
 int validate_and_insert_into(struct insert_options *options, json_t *entry,
                              PGresult **res, PGconn *conn, char *error_buffer) {
   // @TODO use placeholders
@@ -206,26 +221,21 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   remaining_size++;
   cur_memcpy(") VALUES (");
 
-  // build VALUES
-  if (options->primary_tag) {
-    cur_write_json_value(json_object_get(entry, "primary_tag"));
-    cur_append(',');
-  }
-
   current_column_name = column_names;
   char *temp_cur = NULL;
+  // build VALUES
+  if (options->primary_tag) {
+    write_next_json_value();
+  }
+
   for (int i = 0; i < options->schema_count; i++) {
-    temp_cur = current_column_name;
-    while (*temp_cur != ',' && *temp_cur != ')')
-      temp_cur++;
-    current_item = json_object_getn(entry, current_column_name,
-                                    temp_cur - current_column_name);
-    current_column_name = temp_cur + 1;
-    if (current_item) {
-      cur_write_json_value(current_item);
-      cur_append(',');
-    } else
-      cur_memcpy("NULL,");
+    write_next_json_value();
+
+    if (strcmp(options->schema[i].datatype, "geodetic point") == 0) {
+      write_next_json_value(); // latlong_accuracy
+      write_next_json_value(); // altitude
+      write_next_json_value(); // altitude_accuracy
+    }
   }
 
   // remove trailing comma
