@@ -666,14 +666,12 @@ void *handle_client(void *arg) {
         goto schema_mismatch_end;
       }
 
-      struct data_column *schema = NULL;
-      int schema_count = -1;
-      const char *primary_column_name = "id";
-      const char *duplicate_column_name = "id";
+      struct insert_options options = {table_name, NULL, -1, 0, "id", "id"};
       if (strcmp(target_type, "data") == 0) {
         // no additional checks needed
-        schema = table->schema;
-        schema_count = table->schema_count;
+        options.schema = table->schema;
+        options.schema_count = table->schema_count;
+        options.primary_tag = table->tagging;
       } else if (strcmp(target_type, "descriptors") == 0) {
         if (!table->descriptors) {
           build_response_printf(400, &response, &response_len,
@@ -690,13 +688,13 @@ void *handle_client(void *arg) {
         // look for the respective descriptor
         for (int i = 0; i < table->descriptors_count; i++) {
           if (str_cci_cmp(table->descriptors[i].name, descriptor_name) == 0) {
-            schema = table->descriptors[i].schema;
-            schema_count = table->descriptors[i].schema_count;
+            options.schema = table->descriptors[i].schema;
+            options.schema_count = table->descriptors[i].schema_count;
             break;
           }
         }
 
-        if (!schema || schema_count == -1) {
+        if (!options.schema || options.schema_count == -1) {
           build_response(400, &response, &response_len,
                          "Descriptor schema not found.");
           goto schema_mismatch_end;
@@ -712,36 +710,61 @@ void *handle_client(void *arg) {
                  "_%s_descriptors", descriptor_name);
         to_lower_snake_case(table_name);
       } else if (strcmp(target_type, "tags") == 0) {
-        schema = tags_schema;
-        schema_count = tags_schema_count;
+        if (!table->tagging) {
+          build_response(400, &response, &response_len,
+                         "This table does not have tagging enabled.");
+          goto schema_mismatch_end;
+        }
+
+        options.schema = tags_schema;
+        options.schema_count = tags_schema_count;
 
         // update target table name
-        url_segments[1] = table_name = replace_table_name(table_name, "_tags");
+        options.table_name = url_segments[1] = table_name =
+            replace_table_name(table_name, "_tags");
       } else if (strcmp(target_type, "tag_names") == 0) {
-        schema = tag_names_schema;
-        schema_count = tag_names_schema_count;
+        if (!table->tagging) {
+          build_response(400, &response, &response_len,
+                         "This table does not have tagging enabled.");
+          goto schema_mismatch_end;
+        }
 
-        duplicate_column_name = "tag_name";
+        options.schema = tag_names_schema;
+        options.schema_count = tag_names_schema_count;
+
+        options.duplicate_column_name = "tag_name";
 
         // update target table name
-        url_segments[1] = table_name =
+        options.table_name = url_segments[1] = table_name =
             replace_table_name(table_name, "_tag_names");
       } else if (strcmp(target_type, "tag_aliases") == 0) {
-        schema = tag_aliases_schema;
-        schema_count = tag_aliases_schema_count;
+        if (!table->tagging) {
+          build_response(400, &response, &response_len,
+                         "This table does not have tagging enabled.");
+          goto schema_mismatch_end;
+        }
 
-        primary_column_name = "alias";
-        duplicate_column_name = "alias";
+        options.schema = tag_aliases_schema;
+        options.schema_count = tag_aliases_schema_count;
+
+        options.primary_column_name = "alias";
+        options.duplicate_column_name = "alias";
 
         // update target table name
-        url_segments[1] = table_name =
+        options.table_name = url_segments[1] = table_name =
             replace_table_name(table_name, "_tag_aliases");
       } else if (strcmp(target_type, "tag_groups") == 0) {
-        schema = tag_groups_schema;
-        schema_count = tag_groups_schema_count;
+        if (!table->tagging) {
+          build_response(400, &response, &response_len,
+                         "This table does not have tagging enabled.");
+          goto schema_mismatch_end;
+        }
+
+        options.schema = tag_groups_schema;
+        options.schema_count = tag_groups_schema_count;
 
         // update target table name
-        url_segments[1] = table_name =
+        options.table_name = url_segments[1] = table_name =
             replace_table_name(table_name, "_tag_groups");
       } else {
         build_response(400, &response, &response_len,
@@ -749,7 +772,7 @@ void *handle_client(void *arg) {
         goto schema_mismatch_end;
       }
 
-      if (!schema || schema_count == -1) {
+      if (!options.schema || options.schema_count == -1) {
         build_response(
             500, &response, &response_len,
             "Bad target table schema. Contact website maintainer for a fix.");
@@ -757,11 +780,6 @@ void *handle_client(void *arg) {
       }
 
       // construct & validate query as we go
-      struct insert_options options = {
-          table_name,          schema,
-          schema_count,        table->tagging,
-          primary_column_name, duplicate_column_name};
-
       conn = connect_db(database_name);
       ExecStatusType sql_query_status;
       bool sql_query_succesful = true; // innocent until proven guilty
@@ -790,7 +808,7 @@ void *handle_client(void *arg) {
         build_response_printf(400, &response, &response_len,
                               strlen("The given entry does not "
                                      "conform to the schema: ") +
-                                  ERROR_BUFFER_SIZE,
+                                  strlen(error_buffer),
                               "The given entry does not "
                               "conform to the schema: %s",
                               error_buffer);

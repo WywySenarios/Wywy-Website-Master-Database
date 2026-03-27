@@ -18,9 +18,8 @@ class TestSelectEndpoints(unittest.TestCase):
     def tearDown(self):
         purge_database()
 
-    def test_insert(self):
-        """Test the INSERT data (main table & descriptors) endpoint for every table."""
-
+    def test_insert_generic(self):
+        """Test if basic INSERT endpoint logic security is enabled."""
         # does the INSERT endpoint check the origin header?
         self.assertEqual(requests.get(f"{SQL_RECEPTIONIST_URL}").status_code, 400)
 
@@ -66,6 +65,136 @@ class TestSelectEndpoints(unittest.TestCase):
             400,
         )
 
+    def test_insert_tag_names(self):
+        """Test the INSERT tag_names endpoint for every table."""
+        empty_body_json_checked: bool = False
+
+        populate_database()
+
+        for database_info in CONFIG["data"]:
+            database_name = to_lower_snake_case(database_info["dbname"])
+            for table_info in database_info["tables"]:
+                table_name = to_lower_snake_case(table_info["tableName"])
+                endpoint = (
+                    f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/tag_names"
+                )
+                response = requests.post(
+                    endpoint,
+                    headers={"Origin": environ["MAIN_URL"]},
+                    cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+                    json={"tag_name": "'very unique tag name'"},
+                )
+                if table_info.get("tagging", False):
+                    self.assertEqual(
+                        response.status_code,
+                        200,
+                        f"Valid INSERT to {endpoint} is not OK: {response.status_code}: {response.text}",
+                    )
+
+                    # also check for empty body or JSON case if we haven't already done so
+                    if not empty_body_json_checked:
+                        # is INSERTing nothing or an empty JSON caught?
+                        endpoint = f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/tag_names"
+                        response = requests.post(
+                            endpoint,
+                            headers={"Origin": environ["MAIN_URL"]},
+                            cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+                            data="",
+                        )
+                        self.assertEqual(
+                            response.status_code,
+                            400,
+                            f"Invalid INSERT to {endpoint} does not respond with status 400: {response.status_code}: {response.text}",
+                        )
+                        endpoint = f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/tag_names"
+                        response = requests.post(
+                            endpoint,
+                            headers={"Origin": environ["MAIN_URL"]},
+                            cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+                            json={},
+                        )
+                        self.assertEqual(
+                            response.status_code,
+                            400,
+                            f"Invalid INSERT to {endpoint} does not respond with status 400: {response.status_code}: {response.text}",
+                        )
+                        empty_body_json_checked = True
+
+                else:
+                    # check that tables with tagging disabled cannot INSERT tags
+                    self.assertEqual(
+                        response.status_code,
+                        400,
+                        f"Invalid insert to {endpoint} did not respond with status 400: {response.status_code}: {response.text}",
+                    )
+
+    def test_insert_tags(self):
+        """Test the INSERT tags endpoint for every table."""
+        empty_body_json_checked: bool = False
+
+        populate_database()
+
+        for database_info in CONFIG["data"]:
+            database_name = to_lower_snake_case(database_info["dbname"])
+            for table_info in database_info["tables"]:
+                table_name = to_lower_snake_case(table_info["tableName"])
+                endpoint = f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/tags"
+                response = requests.post(
+                    endpoint,
+                    headers={"Origin": environ["MAIN_URL"]},
+                    cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+                    json={"entry_id": 1, "tag_id": 1},
+                )
+                if table_info.get("tagging", False):
+                    self.assertEqual(
+                        response.status_code,
+                        200,
+                        f"Valid INSERT to {endpoint} is not OK: {response.status_code}: {response.text}",
+                    )
+
+                    # also check for empty body or JSON case if we haven't already done so
+                    if not empty_body_json_checked:
+                        # is INSERTing nothing or an empty JSON caught?
+                        endpoint = (
+                            f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/tags"
+                        )
+                        response = requests.post(
+                            endpoint,
+                            headers={"Origin": environ["MAIN_URL"]},
+                            cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+                            data="",
+                        )
+                        self.assertEqual(
+                            response.status_code,
+                            400,
+                            f"Invalid INSERT to {endpoint} does not respond with status 400: {response.status_code}: {response.text}",
+                        )
+                        endpoint = (
+                            f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/tags"
+                        )
+                        response = requests.post(
+                            endpoint,
+                            headers={"Origin": environ["MAIN_URL"]},
+                            cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+                            json={},
+                        )
+                        self.assertEqual(
+                            response.status_code,
+                            400,
+                            f"Invalid INSERT to {endpoint} does not respond with status 400: {response.status_code}: {response.text}",
+                        )
+                        empty_body_json_checked = True
+
+                else:
+                    # check that tables with tagging disabled cannot INSERT tags
+                    self.assertEqual(
+                        response.status_code,
+                        400,
+                        f"Invalid insert to {endpoint} did not respond with status 400: {response.status_code}: {response.text}",
+                    )
+
+    def test_insert(self):
+        """Test the INSERT data (main table & descriptors) endpoint for every table."""
         # is INSERTing nothing or an empty JSON caught?
         self.assertEqual(
             requests.post(
