@@ -118,6 +118,13 @@ int check_timestamplike(const json_t *json) {
 int check_st_point(const json_t *json) {
   // innocent until proven guilty
 
+  // ALWAYS optional
+  if (json_is_null(json))
+    return 1;
+  if (!json_is_string(json))
+    return 0;
+  const char *value = json_string_value(json);
+
   /*
    * full X coordinate -> index 2
    * full Y coordinate -> index 4
@@ -133,8 +140,6 @@ int check_st_point(const json_t *json) {
   }
 
   regmatch_t matches[3];
-
-  const char *value = json_string_value(json);
 
   if (regexec(&preg, value, 3, matches, 0) == REG_NOMATCH) {
     regfree(&preg);
@@ -259,6 +264,10 @@ int validate_column(const json_t *item, struct data_column column_schema,
       return 0;
     }
 
+    // ALWAYS optional
+    if (json_is_null(item))
+      return 1;
+
     // accuracy should be a double precision.
     if (!json_is_real(item)) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
@@ -279,6 +288,10 @@ int validate_column(const json_t *item, struct data_column column_schema,
                column_schema.name);
       return 0;
     }
+
+    // ALWAYS optional
+    if (json_is_null(item))
+      return 1;
 
     // accuracy should be a double precision.
     if (!json_is_real(item)) {
