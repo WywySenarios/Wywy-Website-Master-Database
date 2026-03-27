@@ -30,6 +30,7 @@
     cur_write_column_name(column_name);                                        \
     current_item = json_object_getn(entry, current_column_name,                \
                                     cur - current_column_name);                \
+    cur_append(',');                                                           \
   })
 #define write_and_access_child_column_name(column_name, column_suffix)         \
   ({                                                                           \
@@ -38,6 +39,7 @@
     cur_memcpy(column_suffix);                                                 \
     current_item = json_object_getn(entry, current_column_name,                \
                                     cur - current_column_name);                \
+    cur_append(',');                                                           \
   })
 #define cur_write_json_value(value)                                            \
   ({                                                                           \
@@ -97,7 +99,6 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
           strlen("Datatype mismatch: primary_tag should be an integer.") + 1);
       return 0;
     }
-    cur_append(',');
     columns_consumed++;
   }
 
@@ -115,13 +116,12 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
                options->schema[i].name, options->schema[i].datatype);
       return 0;
     }
-    cur_append(',');
     columns_consumed++;
 
     // enforce geodetic point child columns
     if (strcmp(options->schema[i].datatype, "geodetic point") == 0) {
       write_and_access_child_column_name(options->schema[i].name,
-                                         "_latlong_accuracy,");
+                                         "_latlong_accuracy");
       if (current_item) {
         columns_consumed++;
         if (!validate_column(current_item, options->schema[i],
@@ -134,7 +134,7 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
           return 0;
         }
       }
-      write_and_access_child_column_name(options->schema[i].name, "_altitude,");
+      write_and_access_child_column_name(options->schema[i].name, "_altitude");
       if (current_item) {
         columns_consumed++;
         if (!validate_column(current_item, options->schema[i], ALTITUDE)) {
@@ -147,7 +147,7 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
         }
       }
       write_and_access_child_column_name(options->schema[i].name,
-                                         "_altitude_accuracy,");
+                                         "_altitude_accuracy");
       if (current_item) {
         columns_consumed++;
         if (!validate_column(current_item, options->schema[i],
