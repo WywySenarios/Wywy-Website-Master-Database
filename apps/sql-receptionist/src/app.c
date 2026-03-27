@@ -758,8 +758,9 @@ void *handle_client(void *arg) {
 
       // construct & validate query as we go
       struct insert_options options = {
-          table_name,           schema, schema_count, 0, primary_column_name,
-          duplicate_column_name};
+          table_name,          schema,
+          schema_count,        table->tagging,
+          primary_column_name, duplicate_column_name};
 
       conn = connect_db(database_name);
       ExecStatusType sql_query_status;
