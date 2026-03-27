@@ -238,7 +238,7 @@ int validate_column(const json_t *item, struct data_column column_schema,
     if (!json_is_real(item)) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        printf("Non-conformat data. Expected a double precision for column "
+        printf("Non-conformant data. Expected a double precision for column "
                "%s_altitude.\n",
                column_schema.name);
       return 0;
@@ -261,7 +261,7 @@ int validate_column(const json_t *item, struct data_column column_schema,
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
         printf(
-            "Non-conformat data. Expected a double precision for column %s.\n",
+            "Non-conformant data. Expected a double precision for column %s.\n",
             column_schema.name);
       return 0;
     }
