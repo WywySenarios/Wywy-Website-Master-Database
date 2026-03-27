@@ -122,36 +122,44 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
     if (strcmp(options->schema[i].datatype, "geodetic point") == 0) {
       write_and_access_child_column_name(options->schema[i].name,
                                          "_latlong_accuracy,");
-      if (current_item && !validate_column(current_item, options->schema[i],
-                                           LATLONG_ACCURACY)) {
-        snprintf(error_buffer, ERROR_BUFFER_SIZE,
-                 "Datatype mismatch: accuracy sub-column of \"%s\" should be a "
-                 "double.",
-                 options->schema[i].name);
-        return 0;
+      if (current_item) {
+        columns_consumed++;
+        if (!validate_column(current_item, options->schema[i],
+                             LATLONG_ACCURACY)) {
+          snprintf(
+              error_buffer, ERROR_BUFFER_SIZE,
+              "Datatype mismatch: accuracy sub-column of \"%s\" should be a "
+              "double.",
+              options->schema[i].name);
+          return 0;
+        }
       }
       write_and_access_child_column_name(options->schema[i].name, "_altitude,");
-      if (current_item &&
-          !validate_column(current_item, options->schema[i], ALTITUDE)) {
-        snprintf(error_buffer, ERROR_BUFFER_SIZE,
-                 "Datatype mismatch: altitude sub-column of \"%s\" should be a "
-                 "double.",
-                 options->schema[i].name);
-        return 0;
+      if (current_item) {
+        columns_consumed++;
+        if (!validate_column(current_item, options->schema[i], ALTITUDE)) {
+          snprintf(
+              error_buffer, ERROR_BUFFER_SIZE,
+              "Datatype mismatch: altitude sub-column of \"%s\" should be a "
+              "double.",
+              options->schema[i].name);
+          return 0;
+        }
       }
       write_and_access_child_column_name(options->schema[i].name,
                                          "_altitude_accuracy,");
-      if (current_item && !validate_column(current_item, options->schema[i],
-                                           ALTITUDE_ACCURACY)) {
-        snprintf(error_buffer, ERROR_BUFFER_SIZE,
-                 "Datatype mismatch: altitude accuracy sub-column of \"%s\" "
-                 "should be "
-                 "a double.",
-                 options->schema[i].name);
-        return 0;
+      if (current_item) {
+        columns_consumed++;
+        if (!validate_column(current_item, options->schema[i],
+                             ALTITUDE_ACCURACY)) {
+          snprintf(error_buffer, ERROR_BUFFER_SIZE,
+                   "Datatype mismatch: altitude accuracy sub-column of \"%s\" "
+                   "should be "
+                   "a double.",
+                   options->schema[i].name);
+          return 0;
+        }
       }
-
-      columns_consumed += 3;
     }
 
     // enforce columns (optional)
