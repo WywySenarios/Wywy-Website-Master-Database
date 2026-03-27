@@ -133,16 +133,14 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
         return 0;
       }
       write_and_access_child_column_name(options->schema[i].name, "_altitude,");
-      if (current_item && !validate_column(current_item, options->schema[i],
-                                           ALTITUDE_ACCURACY)) {
+      if (current_item &&
+          !validate_column(current_item, options->schema[i], ALTITUDE)) {
         snprintf(error_buffer, ERROR_BUFFER_SIZE,
                  "Datatype mismatch: altitude sub-column of \"%s\" should be a "
                  "double.",
                  options->schema[i].name);
         return 0;
       }
-      if (!validate_column(current_item, options->schema[i], ALTITUDE_ACCURACY))
-        return 0;
       write_and_access_child_column_name(options->schema[i].name,
                                          "_altitude_accuracy,");
       if (current_item && !validate_column(current_item, options->schema[i],
