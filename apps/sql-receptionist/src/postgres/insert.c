@@ -88,7 +88,7 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
 
     if (!current_item) {
       memcpy(error_buffer, "Missing column \"primary tag\".",
-             strlen("Missing primary tag.") + 1);
+             strlen("Missing \"primary tag\".") + 1);
       return 0;
     }
     if (!json_is_integer(current_item)) {
@@ -188,7 +188,7 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   // make sure there are no extra columns
   if (json_object_size(entry) != columns_consumed) {
     memcpy(error_buffer, "The given entry contains erroneous values.",
-           strlen("The given entry contains erroneous values."));
+           strlen("The given entry contains erroneous values.") + 1);
     return 0;
   }
 
