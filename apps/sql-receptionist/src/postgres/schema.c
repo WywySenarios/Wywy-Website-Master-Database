@@ -137,6 +137,7 @@ int check_st_point(const json_t *json) {
   const char *value = json_string_value(json);
 
   if (regexec(&preg, value, 3, matches, 0) == REG_NOMATCH) {
+    regfree(&preg);
     return 0;
   }
 
@@ -146,13 +147,16 @@ int check_st_point(const json_t *json) {
   double y = strtod(value + matches[2].rm_so, &endptr);
 
   if (x < -180 || 180 < x) {
+    regfree(&preg);
     return 0;
   }
 
   if (y < -90 || 90 < y) {
+    regfree(&preg);
     return 0;
   }
 
+  regfree(&preg);
   return 1;
 }
 
