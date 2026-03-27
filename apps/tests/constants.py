@@ -1,6 +1,6 @@
 from os import environ
 from typing import Literal
-from .Wywy_Website_Types import Datatype, PostgresDatatype
+from Wywy_Website_Types import Datatype, PostgresDatatype
 
 SQL_RECEPTIONIST_URL = f"http://{environ["SQL_RECEPTIONIST_HOST"]}:2523"
 SQL_RECEPTIONIST_ADMIN_USERNAME = "admin"

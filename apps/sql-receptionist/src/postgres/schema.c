@@ -137,6 +137,7 @@ int check_st_point(const json_t *json) {
   const char *value = json_string_value(json);
 
   if (regexec(&preg, value, 3, matches, 0) == REG_NOMATCH) {
+    regfree(&preg);
     return 0;
   }
 
@@ -146,13 +147,16 @@ int check_st_point(const json_t *json) {
   double y = strtod(value + matches[2].rm_so, &endptr);
 
   if (x < -180 || 180 < x) {
+    regfree(&preg);
     return 0;
   }
 
   if (y < -90 || 90 < y) {
+    regfree(&preg);
     return 0;
   }
 
+  regfree(&preg);
   return 1;
 }
 
@@ -238,14 +242,13 @@ int validate_column(const json_t *item, struct data_column column_schema,
     if (!json_is_real(item)) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        printf("Non-conformat data. Expected a double precision for column "
+        printf("Non-conformant data. Expected a double precision for column "
                "%s_altitude.\n",
                column_schema.name);
       return 0;
     }
     return 1;
   case LATLONG_ACCURACY:
-  case ALTITUDE_ACCURACY:
     // the related column should be a geodetic point.
     if (strcmp(column_schema.datatype, "geodetic point") != 0) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
@@ -260,9 +263,30 @@ int validate_column(const json_t *item, struct data_column column_schema,
     if (!json_is_real(item)) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        printf(
-            "Non-conformat data. Expected a double precision for column %s.\n",
-            column_schema.name);
+        printf("Datatype mismatch. Expected a double precision for column "
+               "%s_latlong_accuracy.\n",
+               column_schema.name);
+      return 0;
+    }
+    return 1;
+  case ALTITUDE_ACCURACY:
+    // the related column should be a geodetic point.
+    if (strcmp(column_schema.datatype, "geodetic point") != 0) {
+      if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
+          strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
+        printf("Column %s is not a geodetic point and therefore cannot have a "
+               "related altitude accuracy.\n",
+               column_schema.name);
+      return 0;
+    }
+
+    // accuracy should be a double precision.
+    if (!json_is_real(item)) {
+      if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
+          strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
+        printf("Datatype mismatch. Expected a double precision for column "
+               "%s_altitude_accuracy.\n",
+               column_schema.name);
       return 0;
     }
     return 1;

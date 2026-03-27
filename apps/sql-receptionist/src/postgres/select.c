@@ -1,69 +1,20 @@
 #ifndef HEADER_CONFIG
 #define HEADER_CONFIG
 #include "config.h"
-#include "libpq-fe.h"
-#include <asm-generic/errno.h>
 #endif
+#ifndef CUR_LIB
+#define CUR_LIB
+#include "utils/cur.h"
+#endif
+#include "libpq-fe.h"
 #include "postgres/select.h"
 #include "utils/format_string.h"
+#include <asm-generic/errno.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-
-#define decrease_remaining_size(size)                                          \
-  ({                                                                           \
-    n = size;                                                                  \
-    if (remaining_size < n) {                                                  \
-      errno = ENOMEM;                                                          \
-      return;                                                                  \
-    }                                                                          \
-    remaining_size -= n;                                                       \
-  })
-
-#define cur_memcpy(str)                                                        \
-  ({                                                                           \
-    decrease_remaining_size(strlen(str));                                      \
-    memcpy(cur, str, n);                                                       \
-    cur += n;                                                                  \
-  })
-
-#define cur_write_table_name()                                                 \
-  ({                                                                           \
-    decrease_remaining_size(table_name_len);                                   \
-    memcpy(cur, options->table_name, table_name_len);                          \
-    to_lower_snake_case_n(cur, table_name_len);                                \
-    cur += table_name_len;                                                     \
-  })
-
-#define cur_write_column_name()                                                \
-  ({                                                                           \
-    decrease_remaining_size(strlen(options->schema[i].name));                  \
-    memcpy(cur, options->schema[i].name, n);                                   \
-    to_lower_snake_case_n(cur, n);                                             \
-    cur += n;                                                                  \
-  })
-
-#define cur_write_full_column_name()                                           \
-  ({                                                                           \
-    decrease_remaining_size(table_name_len + 1);                               \
-    memcpy(cur, options->table_name, table_name_len);                          \
-    to_lower_snake_case_n(cur, table_name_len);                                \
-    cur += table_name_len;                                                     \
-    *cur++ = '.';                                                              \
-    decrease_remaining_size(strlen(options->schema[i].name));                  \
-    memcpy(cur, options->schema[i].name, n);                                   \
-    to_lower_snake_case_n(cur, n);                                             \
-    cur += n;                                                                  \
-  })
-
-// @TODO optimize cur_append
-#define cur_append(character)                                                  \
-  ({                                                                           \
-    decrease_remaining_size(1);                                                \
-    *cur++ = character;                                                        \
-  })
 
 size_t select_query_size(struct select_options *options) {
   // do not validate options.
@@ -136,7 +87,7 @@ void construct_select_query(struct select_options *options, char *buffer,
       cur_memcpy("ST_AsText(");
       cur_write_full_column_name();
       cur_memcpy(") AS ");
-      cur_write_column_name();
+      cur_write_column_name(options->schema[i].name);
       cur_append(',');
 
       // latlong_accuracy
@@ -212,6 +163,9 @@ void construct_select_query(struct select_options *options, char *buffer,
 
   // null termination
   cur_append('\0');
+
+end:
+  return;
 }
 
 int serialize_select_result(const PGresult *res, char *buffer,

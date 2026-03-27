@@ -5,6 +5,7 @@
 #include "config.h"
 #endif
 #define MAX_SQL_RETURN_LENGTH 101
+#define ERROR_BUFFER_SIZE 251
 
 struct insert_options {
     /**
@@ -35,7 +36,9 @@ struct insert_options {
 };
 
 /**
- * Attempts to INSERT INTO the given table with the given data. Assumes errno has been reset.
+ * Attempts to INSERT INTO the given table with the given data.
+ * Writes an error message to the error buffer on failure.
+ * Assumes errno has been reset.
  * errno will be set to EILSEQ if the input entry & options contain invalid characters.
  * errno will be set to ENOMEM if the input entry & options exceed the maximum query size limit.
  * errno will be set to EDOM if the code is bugged.
@@ -45,6 +48,7 @@ struct insert_options {
  * @param options The data to insert.
  * @param res Query result output pointer. Will be NULL if the query does not run. This pointer must be freed afterwards.
  * @param conn Connection pointer. The connection must be closed afterwards.
+ * @param error_buffer A buffer with at least ERROR_BUFFER_SIZE of size to write an error message to. The error_buffer will contain the NULL terminator as the first charcater if the query ran successfully.
  * @returns Whether or not the query ran (i.e. whether or not the input data was valid).
  */
-extern int validate_and_insert_into(struct insert_options *options, json_t *entry, PGresult **res, PGconn *conn);
+extern int validate_and_insert_into(struct insert_options *options, json_t *entry, PGresult **res, PGconn *conn, char *error_buffer);

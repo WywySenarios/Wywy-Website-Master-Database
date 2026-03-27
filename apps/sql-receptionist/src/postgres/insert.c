@@ -2,6 +2,10 @@
 #define HEADER_CONFIG
 #include "config.h"
 #endif
+#ifndef CUR_LIB
+#define CUR_LIB
+#include "utils/cur.h"
+#endif
 #include "postgres.h"
 #include "postgres/insert.h"
 #include "postgres/schema.h"
@@ -16,169 +20,225 @@
 #include <string.h>
 
 #define MAX_INSERT_QUERY_SIZE 65536
+#define MAX_COLUMN_NAME_SIZE 100
+#define LARGEST_COLUMN_NAME_SUFFIX strlen("_altitude_accuracy")
 
-int validate_and_insert_into(
-    struct insert_options *options, json_t *entry, PGresult **res,
-    PGconn *conn) { // @TODO use iterators, placeholders, and a single loop to
-                    // achieve good safety, runtime, and force all schema items
-                    // to be included.
-  int status = 1;   // innocent until proven guilty
+// does NOT validate datatypes
+#define write_and_access_column(column_name)                                   \
+  ({                                                                           \
+    current_column_name = cur;                                                 \
+    cur_write_column_name(column_name);                                        \
+    current_item = json_object_getn(entry, current_column_name,                \
+                                    cur - current_column_name);                \
+    cur_append(',');                                                           \
+  })
+#define write_and_access_child_column_name(column_name, column_suffix)         \
+  ({                                                                           \
+    current_column_name = cur;                                                 \
+    cur_write_column_name(column_name);                                        \
+    cur_memcpy(column_suffix);                                                 \
+    current_item = json_object_getn(entry, current_column_name,                \
+                                    cur - current_column_name);                \
+    cur_append(',');                                                           \
+  })
+#define cur_write_json_value(value)                                            \
+  ({                                                                           \
+    n = write_json_value(value, cur, remaining_size);                          \
+    if (remaining_size <= n) {                                                 \
+      errno = ENOMEM;                                                          \
+      goto end;                                                                \
+    }                                                                          \
+    remaining_size -= n;                                                       \
+    cur += n;                                                                  \
+  })
+
+#define write_next_json_value()                                                \
+  ({                                                                           \
+    temp_cur = current_column_name;                                            \
+    while (*temp_cur != ',' && *temp_cur != ')')                               \
+      temp_cur++;                                                              \
+    current_item = json_object_getn(entry, current_column_name,                \
+                                    temp_cur - current_column_name);           \
+    current_column_name = temp_cur + 1;                                        \
+    if (current_item) {                                                        \
+      cur_write_json_value(current_item);                                      \
+      cur_append(',');                                                         \
+    } else                                                                     \
+      cur_memcpy("NULL,");                                                     \
+  })
+
+int validate_and_insert_into(struct insert_options *options, json_t *entry,
+                             PGresult **res, PGconn *conn, char *error_buffer) {
+  // @TODO use placeholders
+  int status = 0; // innocent until proven guilty
   const char *key = NULL;
   const json_t *value = NULL;
   char query[MAX_INSERT_QUERY_SIZE];
+  char *current_column_name = NULL;
   char *cur = query;
+  char *column_names = NULL;
   size_t remaining_size = MAX_INSERT_QUERY_SIZE;
   size_t n;
-
-  // compile regex if needed
-  regex_t suffix_preg;
-  bool suffix_preg_compiled = false;
-
-  if (regcomp(&suffix_preg,
-              "(_comments|_latlong_accuracy|_altitude_accuracy|_altitude)$",
-              REG_EXTENDED) == 0)
-    suffix_preg_compiled = true;
-  else {
-    errno = EDOM;
-    status = 0;
-    goto insert_end;
-  }
+  *error_buffer = '\0';
 
   // write in the beginning of the query
   // we can guarentee this fits into the query buffer because it's the first
   // text to be inserted and is a known constant.
   n = snprintf(cur, remaining_size, "INSERT INTO %s (", options->table_name);
   if (errno) {
-    status = 0;
-    goto insert_end;
+    goto end;
   }
   if (remaining_size < n) {
     errno = ENOMEM;
-    status = 0;
-    goto insert_end;
+    goto end;
   }
   remaining_size -= n;
   cur += n;
 
   // check for conformance & write in column names
-  json_object_foreach(entry, key, value) {
-    // ignore keys with null values. This allows child key existence to be
-    // detected while also preventing the need for extra NULL checks down the
-    // line.
-    if (json_is_null(value))
-      continue;
+  size_t columns_consumed = 0;
+  json_t *current_item = NULL;
+  column_names = cur;
+  // check for primary_tag
+  if (options->primary_tag) {
+    write_and_access_column("primary_tag");
 
-    // skip id column (rely on auto-increment)
-    if (strcmp(key, "id") == 0)
-      continue;
-    bool validated = false;
-
-    // column type & suffix related variables. These need not be freed.
-    enum column_type column_type = DATA;
-    regmatch_t suffix_matches[1 + 1];
-
-    // check if the column is directly inside the schema or not.
-    // check if it's a special column (i.e. sub-column)
-    if (regexec(&suffix_preg, key, 2, suffix_matches, 0) != REG_NOMATCH) {
-      const char *suffix = key + suffix_matches[1].rm_so;
-
-      if (strcmp(suffix, "_comments") == 0) {
-        column_type = COMMENTS;
-      } else if (strcmp(suffix, "_latlong_accuracy") == 0) {
-        column_type = LATLONG_ACCURACY;
-      } else if (strcmp(suffix, "_altitude_accuracy") == 0) {
-        column_type = ALTITUDE_ACCURACY;
-      } else if (strcmp(suffix, "_altitude") == 0) {
-        column_type = ALTITUDE;
-      } else {
-        errno = EDOM;
-        fprintf(stderr, "CRITICAL: Failed to trap column suffix.\n");
-        status = 0;
-        goto insert_end;
-      }
+    if (!current_item) {
+      memcpy(error_buffer, "Missing column \"primary tag\".",
+             strlen("Missing \"primary tag\".") + 1);
+      return 0;
     }
-
-    n = strlen(key);
-
-    if (remaining_size < n + 1) {
-      errno = ENOMEM;
-      status = 0;
-      goto insert_end;
+    if (!json_is_integer(current_item)) {
+      memcpy(
+          error_buffer, "Datatype datatype: primary_tag should be an integer.",
+          strlen("Datatype mismatch: primary_tag should be an integer.") + 1);
+      return 0;
     }
-    remaining_size -= n + 1;
-    memcpy(cur, key, n);
-    // temporarily null terminate
-    *(cur + n) = '\0';
+    columns_consumed++;
+  }
 
-    // validate entry data
-    if (strcmp(cur, "primary_tag") == 0) {
-      // it's hard to validate FOREIGN KEY so we'll let Postgres take care of
-      // this.
-      if (!json_is_integer(value)) {
-        status = 0;
-        goto insert_end;
-      }
-    } else {
-      for (int i = 0; i < options->schema_count; i++) {
-        // find which entry in the schema matches
+  for (int i = 0; i < options->schema_count; i++) {
+    // @TODO add optionality
+    write_and_access_column(options->schema[i].name);
+    if (!current_item) {
+      snprintf(error_buffer, ERROR_BUFFER_SIZE, "Missing column \"%s\".",
+               options->schema[i].name);
+      return 0;
+    }
+    if (!validate_column(current_item, options->schema[i], DATA)) {
+      snprintf(error_buffer, ERROR_BUFFER_SIZE,
+               "Datatype mismatch: column \"%s\" should be a %s.",
+               options->schema[i].name, options->schema[i].datatype);
+      return 0;
+    }
+    columns_consumed++;
 
-        if (str_cci_cmp(cur, options->schema[i].name) == 0) {
-          // validate against the column schema
-          if (!validate_column(value, options->schema[i], column_type)) {
-            status = 0;
-            goto insert_end;
-          }
-
-          goto valid_column;
+    // enforce geodetic point child columns
+    if (strcmp(options->schema[i].datatype, "geodetic point") == 0) {
+      write_and_access_child_column_name(options->schema[i].name,
+                                         "_latlong_accuracy");
+      if (current_item) {
+        columns_consumed++;
+        if (!validate_column(current_item, options->schema[i],
+                             LATLONG_ACCURACY)) {
+          snprintf(
+              error_buffer, ERROR_BUFFER_SIZE,
+              "Datatype mismatch: accuracy sub-column of \"%s\" should be a "
+              "double.",
+              options->schema[i].name);
+          return 0;
         }
       }
-
-      status = 0;
-      goto insert_end;
+      write_and_access_child_column_name(options->schema[i].name, "_altitude");
+      if (current_item) {
+        columns_consumed++;
+        if (!validate_column(current_item, options->schema[i], ALTITUDE)) {
+          snprintf(
+              error_buffer, ERROR_BUFFER_SIZE,
+              "Datatype mismatch: altitude sub-column of \"%s\" should be a "
+              "double.",
+              options->schema[i].name);
+          return 0;
+        }
+      }
+      write_and_access_child_column_name(options->schema[i].name,
+                                         "_altitude_accuracy");
+      if (current_item) {
+        columns_consumed++;
+        if (!validate_column(current_item, options->schema[i],
+                             ALTITUDE_ACCURACY)) {
+          snprintf(error_buffer, ERROR_BUFFER_SIZE,
+                   "Datatype mismatch: altitude accuracy sub-column of \"%s\" "
+                   "should be "
+                   "a double.",
+                   options->schema[i].name);
+          return 0;
+        }
+      }
     }
-  valid_column:
-    // convert column_name into lower_snake_case
-    to_lower_snake_case(cur);
-    cur += n;
-    *cur++ = ',';
+
+    // enforce columns (optional)
+    if (options->schema[i].comments) {
+
+      current_column_name = cur;
+      cur_write_column_name(options->schema[i].name);
+      cur_memcpy("_comments");
+
+      current_item = json_object_getn(entry, current_column_name,
+                                      cur - current_column_name);
+
+      if (current_item) {
+        columns_consumed++;
+        if (!validate_column(current_item, options->schema[i], COMMENTS)) {
+          snprintf(error_buffer, ERROR_BUFFER_SIZE,
+                   "Datatype mismatch: comments sub-column of \"%s\" should be "
+                   "a string.",
+                   options->schema[i].name);
+          return 0;
+        }
+        cur_append(',');
+      } else {
+        // pull back cur
+        n = strlen(options->schema[i].name) + strlen("_comments");
+        remaining_size += n;
+        cur -= n;
+      }
+    }
   }
+
+  // make sure there are no extra columns
+  if (json_object_size(entry) != columns_consumed) {
+    memcpy(error_buffer, "The given entry contains erroneous values.",
+           strlen("The given entry contains erroneous values.") + 1);
+    return 0;
+  }
+
+  // the entry is now considered as valid, we can commit to malloc'ing memory
+  // it might be optimizeable by using a dynamic memory pool
 
   // remove trailing comma & add ") VALUES ("
   cur--;
   remaining_size++;
-  n = strlen(") VALUES (");
-  if (remaining_size < n) {
-    errno = ENOMEM;
-    status = 0;
-    goto insert_end;
+  cur_memcpy(") VALUES (");
+
+  current_column_name = column_names;
+  char *temp_cur = NULL;
+  // build VALUES
+  if (options->primary_tag) {
+    write_next_json_value();
   }
-  remaining_size -= n;
-  memcpy(cur, ") VALUES (", n);
-  cur += n;
 
-  // build the query
-  json_object_foreach(entry, key, value) {
-    if (json_is_null(value))
-      continue;
+  for (int i = 0; i < options->schema_count; i++) {
+    write_next_json_value();
 
-    // skip ID column (rely on auto-increment)
-    if (strcmp(key, "id") == 0)
-      continue;
-
-    n = write_json_value(value, cur, remaining_size);
-    if (remaining_size <= n) {
-      errno = ENOMEM;
-      status = 0;
-      goto insert_end;
+    if (strcmp(options->schema[i].datatype, "geodetic point") == 0) {
+      write_next_json_value(); // latlong_accuracy
+      write_next_json_value(); // altitude
+      write_next_json_value(); // altitude_accuracy
     }
-    remaining_size -= n;
-    cur += n;
-
-    *cur++ = ',';
-    remaining_size--;
   }
 
-  // remove trailing commas
+  // remove trailing comma
   cur--;
   remaining_size++;
 
@@ -188,15 +248,12 @@ int validate_and_insert_into(
       options->duplicate_column_name, options->duplicate_column_name,
       options->duplicate_column_name, options->primary_column_name);
   if (errno) {
-    status = 0;
-    goto insert_end;
+    goto end;
   }
   if (remaining_size <= n) {
     errno = ENOMEM;
-    status = 0;
-    goto insert_end;
+    goto end;
   }
-
   cur += n;
   remaining_size -= n;
   *cur = '\0';
@@ -204,10 +261,36 @@ int validate_and_insert_into(
 
   // query database
   sql_query(query, res, conn);
+  status = 1;
 
-insert_end:
-  if (suffix_preg_compiled)
-    regfree(&suffix_preg);
+end:
+  if (!status && *error_buffer == '\0') {
 
+    switch (errno) {
+    case ENOMEM:
+      memcpy(error_buffer, "Memory limit exceeded.\n",
+             strlen("Memory limit exceeded.\n") + 1);
+      break;
+    case EINVAL:
+      memcpy(error_buffer, "Invalid character encoding.\n",
+             strlen("Invalid character encoding.\n") + 1);
+      break;
+    default:
+      memcpy(
+          error_buffer,
+          "Something went wrong while preparing an INSERT statement.\n",
+          strlen(
+              "Something went wrong while preparing an INSERT statement.\n") +
+              1);
+      break;
+    }
+  }
+  if (!status) {
+    if (errno) {
+      perror("lkjahsdf");
+      puts("lkjhasdlfkjhalkjshdflkjhasdf\n");
+    }
+    puts("laksjdflhasdf\n");
+  }
   return status;
 }

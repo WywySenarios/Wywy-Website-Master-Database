@@ -758,8 +758,9 @@ void *handle_client(void *arg) {
 
       // construct & validate query as we go
       struct insert_options options = {
-          table_name,           schema, schema_count, 0, primary_column_name,
-          duplicate_column_name};
+          table_name,          schema,
+          schema_count,        table->tagging,
+          primary_column_name, duplicate_column_name};
 
       conn = connect_db(database_name);
       ExecStatusType sql_query_status;
@@ -767,6 +768,8 @@ void *handle_client(void *arg) {
       bool unexpected_return = false;  // innocent until proven guitly
       char value[MAX_SQL_RETURN_LENGTH];
       const char *temp_value = NULL;
+      char error_buffer[ERROR_BUFFER_SIZE];
+      *error_buffer = '\0';
 
       sql_query("BEGIN;", &res, conn);
       sql_query_succesful &=
@@ -776,23 +779,33 @@ void *handle_client(void *arg) {
       PQclear(res);
       res = NULL;
 
-      switch (validate_and_insert_into(&options, entry, &res, conn)) {
+      switch (
+          validate_and_insert_into(&options, entry, &res, conn, error_buffer)) {
       case 0:
         if (errno) {
           perror("INSERT query");
           errno = 0;
         }
 
-        build_response(400, &response, &response_len,
-                       "The given entry does not "
-                       "conform to the schema.");
+        build_response_printf(400, &response, &response_len,
+                              strlen("The given entry does not "
+                                     "conform to the schema: ") +
+                                  ERROR_BUFFER_SIZE,
+                              "The given entry does not "
+                              "conform to the schema: %s",
+                              error_buffer);
         goto schema_mismatch_end;
       case 1:
         break;
       default:
-        build_response(500, &response, &response_len,
-                       "Something went wrong while checking your entry with "
-                       "the schema.");
+        build_response_printf(
+            500, &response, &response_len,
+            strlen("Something went wrong while checking your entry with "
+                   "the schema: ") +
+                ERROR_BUFFER_SIZE,
+            "Something went wrong while checking your entry with "
+            "the schema: %s",
+            error_buffer);
         goto schema_mismatch_end;
       }
       sql_query_succesful &=
@@ -853,8 +866,11 @@ void *handle_client(void *arg) {
 end:
   // send HTTP response to client
   // @TODO determine if NULL checks are necessary
-  if (response && *response && response_len)
+  if (response && *response && response_len) {
+    if (strcmp(getenv("SQL_RECEPTIONIST_LOG_RESPONSES"), "TRUE") == 0)
+      printf("Response: %s\n", response);
     send(client_fd, *&response, *&response_len, 0);
+  }
   close(client_fd);
 
   free(buffer);

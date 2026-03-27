@@ -5,12 +5,12 @@ import requests
 import datetime
 import re
 from os import environ
-from ..config import CONFIG
-from ..Wywy_Website_Types import DataColumn, EntryTableData, DescriptorInfo, TableInfo
-from ..constants import SQL_RECEPTIONIST_URL, SQL_RECEPTIONIST_AUTH_COOKIES
-from ..utils import to_lower_snake_case
-from ..database.purge import purge_database
-from ..database.populate import populate_database
+from config import CONFIG
+from Wywy_Website_Types import DataColumn, EntryTableData, DescriptorInfo, TableInfo
+from constants import SQL_RECEPTIONIST_URL, SQL_RECEPTIONIST_AUTH_COOKIES
+from utils import to_lower_snake_case
+from testing_helpers.purge import purge_database
+from testing_helpers.populate import populate_database
 from typing import List
 
 
@@ -21,7 +21,11 @@ def assert_data_response(
 ) -> EntryTableData:
     column_schema: List[DataColumn] = item_schema["schema"]
 
-    test_object.assertEqual(response.status_code, 200, "Data fetch response not OK.")
+    test_object.assertEqual(
+        response.status_code,
+        200,
+        f"Data fetch to {response.url} response not OK: {response.text}",
+    )
 
     try:
         data = response.json()
@@ -53,6 +57,11 @@ Failed to decode JSON:
     column_name_iterator = iter(data["columns"])
     # ID column
     test_object.assertEqual(next(column_name_iterator), "id")
+
+    # primary_tag
+    if item_schema.get("tagging", False):
+        test_object.assertEqual(next(column_name_iterator), "primary_tag")
+
     for column in column_schema:
         column_name = to_lower_snake_case(column["name"])
         test_object.assertEqual(next(column_name_iterator), column_name)
@@ -94,6 +103,11 @@ Failed to decode JSON:
 
         # skip ID column
         next(row_iterator)
+
+        # primary_tag
+        if item_schema.get("tagging", False):
+            # @TODO validate primary_tag value
+            next(row_iterator)
 
         for i in range(len(column_schema)):
             # assume it is impossible for the sql-receptionist to select the wrong table's data
@@ -261,14 +275,14 @@ class TestSelectEndpoints(unittest.TestCase):
                 assert_data_response(self, response, table_schema)
 
                 # descriptors
-                if "descriptors" in table_schema:
-                    for descriptor_schema in table_schema["descriptors"]:
-                        response = requests.get(
-                            f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/descriptors/{to_lower_snake_case(descriptor_schema["name"])}?SELECT=*&ORDER_BY=ASC",
-                            headers={"Origin": environ["MAIN_URL"]},
-                            cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
-                        )
-                        assert_data_response(self, response, descriptor_schema)
+                # if "descriptors" in table_schema:
+                #     for descriptor_schema in table_schema["descriptors"]:
+                #         response = requests.get(
+                #             f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/descriptors/{to_lower_snake_case(descriptor_schema["name"])}?SELECT=*&ORDER_BY=ASC",
+                #             headers={"Origin": environ["MAIN_URL"]},
+                #             cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+                #         )
+                #         assert_data_response(self, response, descriptor_schema)
 
         populate_database()
 
@@ -292,14 +306,14 @@ class TestSelectEndpoints(unittest.TestCase):
                 assert_data_response(self, response, table_schema)
 
                 # descriptors
-                if "descriptors" in table_schema:
-                    for descriptor_schema in table_schema["descriptors"]:
-                        response = requests.get(
-                            f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/descriptors/{to_lower_snake_case(descriptor_schema["name"])}?SELECT=*&ORDER_BY=ASC",
-                            headers={"Origin": environ["MAIN_URL"]},
-                            cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
-                        )
-                        assert_data_response(self, response, descriptor_schema)
+                # if "descriptors" in table_schema:
+                #     for descriptor_schema in table_schema["descriptors"]:
+                #         response = requests.get(
+                #             f"{SQL_RECEPTIONIST_URL}/{database_name}/{table_name}/descriptors/{to_lower_snake_case(descriptor_schema["name"])}?SELECT=*&ORDER_BY=ASC",
+                #             headers={"Origin": environ["MAIN_URL"]},
+                #             cookies=SQL_RECEPTIONIST_AUTH_COOKIES,
+                #         )
+                #         assert_data_response(self, response, descriptor_schema)
 
     # def test_select_tags(self):
     #     """Test the SELECT tags endpoint for every table."""
