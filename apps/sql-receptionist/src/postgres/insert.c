@@ -97,8 +97,6 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
           strlen("Datatype mismatch: primary_tag should be an integer.") + 1);
       return 0;
     }
-
-    cur_write_column_name("primary_tag");
     cur_append(',');
     columns_consumed++;
   }
