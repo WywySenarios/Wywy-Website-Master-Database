@@ -13,6 +13,9 @@ WORKDIR apps/postgres
 
 USER root
 
+RUN groupadd -g 2523 Wywy-Website
+RUN usermod -aG Wywy-Website postgres
+
 RUN apt-get update && \
     apt-get install -y openssh-client \
     postgis && \
