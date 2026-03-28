@@ -34,6 +34,7 @@ services:
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/postgresql.dev.conf:/etc/postgresql/postgresql.conf:ro
       - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/master-database
 
 secrets:
   admin:

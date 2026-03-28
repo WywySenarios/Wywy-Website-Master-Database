@@ -5,6 +5,7 @@
  */
 
 #include "config.h"
+#include "logging.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,7 +39,8 @@ size_t write_header(const int status_code, char *buffer,
 
   if (getenv("SQL_RECEPTIONIST_LOG_RESPONSES") &&
       strcmp(getenv("SQL_RECEPTIONIST_LOG_RESPONSES"), "TRUE") == 0)
-    printf("Constructing %d %s headers.\n\n", status_code, status_code_name);
+    log_debug_printf("Constructing %d %s headers.\n\n", status_code,
+                     status_code_name);
 
   const char *connection;
   switch (status_code) {
@@ -76,8 +78,8 @@ void build_response(int status_code, char **response, size_t *response_len,
 
   if (getenv("SQL_RECEPTIONIST_LOG_RESPONSES") &&
       strcmp(getenv("SQL_RECEPTIONIST_LOG_RESPONSES"), "TRUE") == 0)
-    printf("Constructing %d %s response: %s\n\n", status_code, status_code_name,
-           body);
+    log_debug_printf("Constructing %d %s response: %s\n\n", status_code,
+                     status_code_name, body);
 
   const char *connection = "Close";
   if (status_code == 204) {
