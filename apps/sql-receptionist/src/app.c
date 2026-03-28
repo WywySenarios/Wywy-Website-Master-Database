@@ -909,29 +909,6 @@ end:
 }
 
 int main(int argc, char const *argv[]) {
-  // exit if environment variables are missing
-  if (!getenv("DATABASE_HOST")) {
-    fprintf(stderr, "Could not find environment variable DATABASE_HOST");
-    exit(EXIT_FAILURE);
-  }
-
-  if (!getenv("DATABASE_PORT")) {
-    fprintf(stderr, "Could not find environment variable DATABASE_PORT.");
-    exit(EXIT_FAILURE);
-  }
-  if (!getenv("DATABASE_USERNAME")) {
-    fprintf(stderr, "Could not find environment variable DATABASE_USERNAME.");
-    exit(EXIT_FAILURE);
-  }
-  if (!getenv("DATABASE_PASSWORD")) {
-    fprintf(stderr, "Could not find environment variable DATABASE_PASSWORD.");
-    exit(EXIT_FAILURE);
-  }
-  if (!getenv("MAIN_URL")) {
-    fprintf(stderr, "Could not find environment variable MAIN_URL");
-    exit(EXIT_FAILURE);
-  }
-
   // attempt to read admin password
   admin_creds = malloc(MAX_PASSWORD_LENGTH + 1);
   FILE *admin_secret = fopen("/run/secrets/admin", "r");
