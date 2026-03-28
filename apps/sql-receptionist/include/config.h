@@ -9,10 +9,10 @@ enum column_type {
 };
 
 struct data_column {
-  const char *name;                  // @todo validation
-  const char *datatype;              // @todo validation
-  bool comments;                     // optional, ?useless here?
-  const char *entrytype;             // useless here
+  const char *name;      // @todo validation
+  const char *datatype;  // @todo validation
+  bool comments;         // optional, ?useless here?
+  const char *entrytype; // useless here
 };
 
 struct descriptor {
@@ -22,9 +22,9 @@ struct descriptor {
 };
 
 struct table {
-  char *table_name;      // @todo validation
-  bool read;             // @todo validation
-  bool write;            // @todo validation
+  char *table_name; // @todo validation
+  bool read;        // @todo validation
+  bool write;       // @todo validation
   bool tagging;
   const char *entrytype; // @todo validation
   struct data_column *schema;
