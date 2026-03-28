@@ -1,4 +1,5 @@
 #include "config.h"
+#include "logging.h"
 #include <errno.h>
 #include <libpq-fe.h>
 #include <stdlib.h>
@@ -9,7 +10,7 @@
 ExecStatusType sql_query(const char *query, PGresult **res, PGconn *conn) {
   if (getenv("SQL_RECEPTIONIST_LOG_QUERIES") &&
       strcmp(getenv("SQL_RECEPTIONIST_LOG_QUERIES"), "TRUE") == 0)
-    printf("Query: %s\n", query);
+    log_debug_printf("Query: %s\n", query);
 
   // Submit & Execute query
   *res = PQexec(conn, query);

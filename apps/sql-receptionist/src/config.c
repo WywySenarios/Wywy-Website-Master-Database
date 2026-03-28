@@ -2,6 +2,7 @@
  * Reads the main YAML config for the entire repo.
  */
 #include "config.h"
+#include "logging.h"
 #include <cyaml/cyaml.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -98,12 +99,12 @@ static const cyaml_config_t cyaml_config = {
  * the loaded configuration (struct config).
  */
 void load_config(struct config **cfg) {
-  fprintf(stderr, "Attempting to load config at %s\n", CONFIG_PATH);
+  log_info_printf("Attempting to load config at %s\n", CONFIG_PATH);
   cyaml_err_t err = cyaml_load_file(CONFIG_PATH, &cyaml_config, &config_schema,
                                     (void **)cfg, NULL);
 
   if (err != CYAML_OK) {
-    fprintf(stderr, "Failed to load config: %s\n", cyaml_strerror(err));
+    log_critical_printf("Failed to load config: %s\n", cyaml_strerror(err));
 
     *cfg = NULL;
   }

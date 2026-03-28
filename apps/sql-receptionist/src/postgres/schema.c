@@ -2,6 +2,7 @@
 #define HEADER_CONFIG
 #include "config.h"
 #endif
+#include "logging.h"
 #include "utils/regex_item.h"
 #include <jansson.h>
 #include <regex.h>
@@ -196,8 +197,8 @@ int validate_column(const json_t *item, struct data_column column_schema,
     } else {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        printf("Column %s does not have a valid datatype (%s).\n",
-               column_schema.name, datatype);
+        log_debug_printf("Column %s does not have a valid datatype (%s).\n",
+                         column_schema.name, datatype);
       return 0;
     }
 
@@ -205,12 +206,14 @@ int validate_column(const json_t *item, struct data_column column_schema,
         strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0) {
       switch (output) {
       case 0:
-        printf("Non-conformant data against column %s.\n", column_schema.name);
+        log_debug_printf("Non-conformant data against column %s.\n",
+                         column_schema.name);
         break;
       case -1:
-        printf("Something went wrong while trying to validate the datatype "
-               "against column %s.\n",
-               column_schema.name);
+        log_debug_printf(
+            "Something went wrong while trying to validate the datatype "
+            "against column %s.\n",
+            column_schema.name);
         break;
       }
     }
@@ -219,8 +222,8 @@ int validate_column(const json_t *item, struct data_column column_schema,
     if (column_schema.comments == false) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        printf("Column %s does not have commenting enabled.\n",
-               column_schema.name);
+        log_debug_printf("Column %s does not have commenting enabled.\n",
+                         column_schema.name);
       return 0;
     }
 
@@ -228,7 +231,8 @@ int validate_column(const json_t *item, struct data_column column_schema,
     if (json_is_string(item) == 0) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        printf("The comment for column %s was empty.\n", column_schema.name);
+        log_debug_printf("The comment for column %s was empty.\n",
+                         column_schema.name);
       return 0;
     }
     return 1;
@@ -237,9 +241,10 @@ int validate_column(const json_t *item, struct data_column column_schema,
     if (strcmp(column_schema.datatype, "geodetic point") != 0) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        printf("Column %s is not a geodetic point and therefore cannot have an "
-               "altitude.\n",
-               column_schema.name);
+        log_debug_printf(
+            "Column %s is not a geodetic point and therefore cannot have an "
+            "altitude.\n",
+            column_schema.name);
       return 0;
     }
 
@@ -247,9 +252,10 @@ int validate_column(const json_t *item, struct data_column column_schema,
     if (!json_is_real(item)) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        printf("Non-conformant data. Expected a double precision for column "
-               "%s_altitude.\n",
-               column_schema.name);
+        log_debug_printf(
+            "Non-conformant data. Expected a double precision for column "
+            "%s_altitude.\n",
+            column_schema.name);
       return 0;
     }
     return 1;
@@ -258,9 +264,10 @@ int validate_column(const json_t *item, struct data_column column_schema,
     if (strcmp(column_schema.datatype, "geodetic point") != 0) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        printf("Column %s is not a geodetic point and therefore cannot have a "
-               "related geodetic accuracy.\n",
-               column_schema.name);
+        log_debug_printf(
+            "Column %s is not a geodetic point and therefore cannot have a "
+            "related geodetic accuracy.\n",
+            column_schema.name);
       return 0;
     }
 
@@ -272,9 +279,10 @@ int validate_column(const json_t *item, struct data_column column_schema,
     if (!json_is_real(item)) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        printf("Datatype mismatch. Expected a double precision for column "
-               "%s_latlong_accuracy.\n",
-               column_schema.name);
+        log_debug_printf(
+            "Datatype mismatch. Expected a double precision for column "
+            "%s_latlong_accuracy.\n",
+            column_schema.name);
       return 0;
     }
     return 1;
@@ -283,9 +291,10 @@ int validate_column(const json_t *item, struct data_column column_schema,
     if (strcmp(column_schema.datatype, "geodetic point") != 0) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        printf("Column %s is not a geodetic point and therefore cannot have a "
-               "related altitude accuracy.\n",
-               column_schema.name);
+        log_debug_printf(
+            "Column %s is not a geodetic point and therefore cannot have a "
+            "related altitude accuracy.\n",
+            column_schema.name);
       return 0;
     }
 
@@ -297,9 +306,10 @@ int validate_column(const json_t *item, struct data_column column_schema,
     if (!json_is_real(item)) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
           strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        printf("Datatype mismatch. Expected a double precision for column "
-               "%s_altitude_accuracy.\n",
-               column_schema.name);
+        log_debug_printf(
+            "Datatype mismatch. Expected a double precision for column "
+            "%s_altitude_accuracy.\n",
+            column_schema.name);
       return 0;
     }
     return 1;

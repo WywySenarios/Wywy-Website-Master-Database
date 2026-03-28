@@ -11,6 +11,7 @@
 #define HEADER_CONFIG
 #include "config.h"
 #endif
+#include "logging.h"
 #include "postgres.h"
 #include "postgres/insert.h"
 #include "postgres/select.h"
@@ -52,13 +53,13 @@
 
 int done;
 void handle_sigterm(int signal_num) {
-  printf("Received SIGTERM. Exiting now...\n");
+  log_info("Received SIGTERM. Exiting now...\n");
   done = 1;
   exit(0);
 }
 
 void handle_sigint(int signal_num) {
-  printf("Received SIGINT. Exiting now...\n");
+  log_info("Received SIGINT. Exiting now...\n");
   done = 1;
   exit(0);
 }
@@ -186,7 +187,9 @@ void *handle_client(void *arg) {
   // receive request data from client and store into buffer
   ssize_t bytes_received = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
 
-  // printf("%s\n", buffer);
+  if (getenv("SQL_RECEPTIONIST_LOG_REQUESTS") &&
+      strcmp(getenv("SQL_RECEPTIONIST_LOG_REQUESTS"), "TRUE") == 0)
+    log_debug_printf("%s\n", buffer);
 
   if (bytes_received <= 0) {
     build_response(400, &response, &response_len, "No request data received.");
@@ -329,9 +332,7 @@ void *handle_client(void *arg) {
                      strlen(getenv("AUTH_COOKIE_MAX_AGE")) +
                      strlen(getenv("AUTH_COOKIE_MAX_AGE")) + strlen(body) +
                      strlen(getenv("MAIN_URL"));
-      if (getenv("SQL_RECEPTIONIST_LOG_RESPONSES") &&
-          strcmp(getenv("SQL_RECEPTIONIST_LOG_RESPONSES"), "TRUE") == 0)
-        printf("Constructing 200 OK response: ---[Authentication]---\n\n");
+      log_debug("Constructing 200 OK response: ---[Authentication]---\n\n");
       response = malloc(response_len + 1);
       snprintf(response, response_len + 1,
                "HTTP/1.1 200 OK\r\n"
@@ -644,9 +645,7 @@ void *handle_client(void *arg) {
         goto end;
       }
 
-      if (getenv("SQL_RECEPTIONIST_LOG_INPUT") &&
-          strcmp(getenv("SQL_RECEPTIONIST_LOG_INPUT"), "TRUE") == 0)
-        printf("Body: %s\n\n", body);
+      log_debug_printf("Body: %s\n\n", body);
 
       json_t *entry;
       json_error_t entry_error;
@@ -852,7 +851,8 @@ void *handle_client(void *arg) {
         const char *status_message = PQresStatus(sql_query_status);
         const char *error_message = PQerrorMessage(conn);
 
-        printf("ERROR: %s, %s\n", status_message, error_message);
+        log_debug_printf("Database INSERT error: %s, %s\n", status_message,
+                         error_message);
 
         build_response_printf(500, &response, &response_len,
                               strlen(status_message) + 2 +
@@ -885,8 +885,9 @@ end:
   // send HTTP response to client
   // @TODO determine if NULL checks are necessary
   if (response && *response && response_len) {
-    if (strcmp(getenv("SQL_RECEPTIONIST_LOG_RESPONSES"), "TRUE") == 0)
-      printf("Response: %s\n", response);
+    if (getenv("SQL_RECEPTIONIST_LOG_RESPONSES") &&
+        strcmp(getenv("SQL_RECEPTIONIST_LOG_RESPONSES"), "TRUE") == 0)
+      log_debug_printf("Response: %s\n", response);
     send(client_fd, *&response, *&response_len, 0);
   }
   close(client_fd);
@@ -909,35 +910,12 @@ end:
 }
 
 int main(int argc, char const *argv[]) {
-  // exit if environment variables are missing
-  if (!getenv("DATABASE_HOST")) {
-    fprintf(stderr, "Could not find environment variable DATABASE_HOST");
-    exit(EXIT_FAILURE);
-  }
-
-  if (!getenv("DATABASE_PORT")) {
-    fprintf(stderr, "Could not find environment variable DATABASE_PORT.");
-    exit(EXIT_FAILURE);
-  }
-  if (!getenv("DATABASE_USERNAME")) {
-    fprintf(stderr, "Could not find environment variable DATABASE_USERNAME.");
-    exit(EXIT_FAILURE);
-  }
-  if (!getenv("DATABASE_PASSWORD")) {
-    fprintf(stderr, "Could not find environment variable DATABASE_PASSWORD.");
-    exit(EXIT_FAILURE);
-  }
-  if (!getenv("MAIN_URL")) {
-    fprintf(stderr, "Could not find environment variable MAIN_URL");
-    exit(EXIT_FAILURE);
-  }
-
   // attempt to read admin password
   admin_creds = malloc(MAX_PASSWORD_LENGTH + 1);
   FILE *admin_secret = fopen("/run/secrets/admin", "r");
 
   if (!admin_secret) {
-    printf("Could not find admin password secret.");
+    log_critical("Could not find admin password secret.");
     exit(EXIT_FAILURE);
   }
 
@@ -953,30 +931,32 @@ int main(int argc, char const *argv[]) {
   // populate global variables
   load_config(&global_config);
   if (global_config == NULL) {
-    fprintf(stderr, "Failed to load configuration.\n");
+    log_critical("Failed to load configuration.");
     return EXIT_FAILURE;
   } else {
-    printf("Successfully loaded config:\n");
-    printf(" * Postgres Settings:\n");
-    printf("   - Host: %s\n", getenv("DATABASE_HOST"));
-    printf("   - Port: %s\n", getenv("DATABASE_PORT"));
-    printf("   - User: %s\n", getenv("DATABASE_USERNAME"));
-    printf("Recognized %u databases:\n", global_config->dbs_count);
+    log_info("Successfully loaded config:\n");
+    log_info(" * Postgres Settings:\n");
+    log_info_printf("   - Host: %s\n", getenv("DATABASE_HOST"));
+    log_info_printf("   - Port: %s\n", getenv("DATABASE_PORT"));
+    log_info_printf("   - User: %s\n", getenv("DATABASE_USERNAME"));
+    log_info_printf("Recognized %u databases:\n", global_config->dbs_count);
     for (unsigned int i = 0; i < global_config->dbs_count; i++) {
       // transform all database names into lower snake case
       to_lower_snake_case(global_config->dbs[i].db_name);
 
-      printf(" * %s:\n", global_config->dbs[i].db_name);
-      printf("   - Name: %s\n", global_config->dbs[i].db_name);
+      log_info_printf(" * %s:\n", global_config->dbs[i].db_name);
+      log_info_printf("   - Name: %s\n", global_config->dbs[i].db_name);
       for (unsigned int j = 0; j < global_config->dbs[i].tables_count; j++) {
         // transform all table names into lower snake case
         to_lower_snake_case(global_config->dbs[i].tables[j].table_name);
-        printf("     - Table %s:\n",
-               global_config->dbs[i].tables[j].table_name);
-        printf("       + Read: %s\n",
-               global_config->dbs[i].tables[j].read ? "true" : "false");
-        printf("       + Write: %s\n",
-               global_config->dbs[i].tables[j].write ? "true" : "false");
+        log_info_printf("     - Table %s:\n",
+                        global_config->dbs[i].tables[j].table_name);
+        log_info_printf("       + Read: %s\n",
+                        global_config->dbs[i].tables[j].read ? "true"
+                                                             : "false");
+        log_info_printf("       + Write: %s\n",
+                        global_config->dbs[i].tables[j].write ? "true"
+                                                              : "false");
       }
     }
   }
@@ -1014,7 +994,7 @@ int main(int argc, char const *argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  printf("Listening on Port %u.\n", PORT);
+  log_info_printf("Listening on Port %u.\n", PORT);
 
   while (!done) {
     // client info

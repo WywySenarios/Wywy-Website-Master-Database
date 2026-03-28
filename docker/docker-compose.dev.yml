@@ -30,6 +30,7 @@ services:
           initial_sync: true
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
+      - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/master-database
     secrets:
       - admin
     ports:
@@ -73,6 +74,7 @@ services:
           initial_sync: true
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/apps/create_tables/config.yml
+      - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/create_tables
     depends_on:
       postgres:
         condition: service_healthy
@@ -122,6 +124,7 @@ services:
       - ${DATA_DIR}/master-database/postgres:/var/lib/postgresql/data
       - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
       - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/master-database
     extra_hosts:
       - "host.docker.internal:host-gateway"
     shm_size: 128mb

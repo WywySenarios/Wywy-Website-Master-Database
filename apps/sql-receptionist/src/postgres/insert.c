@@ -257,7 +257,6 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   cur += n;
   remaining_size -= n;
   *cur = '\0';
-  // printf("%ld %ld\n", MAX_INSERT_QUERY_SIZE + query - cur, remaining_size);
 
   // query database
   sql_query(query, res, conn);
