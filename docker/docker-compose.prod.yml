@@ -8,7 +8,10 @@ services:
     build:
       context: ../
       dockerfile: apps/sql-receptionist/Dockerfile
-      # target: builder
+      target: prod
+      args:
+        USER_ID: ${USER_ID}
+        LIBCYAML_VARIANT: release
     env_file:
       - path: ${UNIVERSAL_CONFIG_DIR}/.env
         required: true
@@ -48,7 +51,7 @@ services:
     networks:
       - postgres
     volumes:
-      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/apps/create_tables/config.yml
+      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/home/create_tables/config.yml
       - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/create_tables
     command: python3 create_tables.py
 

@@ -6,6 +6,8 @@ services:
     build:
       context: ../
       dockerfile: apps/tests/Dockerfile
+      args:
+        USER_ID: ${USER_ID}
     env_file:
       - path: ${UNIVERSAL_CONFIG_DIR}/.env
         required: true
@@ -18,7 +20,7 @@ services:
     secrets:
       - admin
     volumes:
-      - ./../apps/tests:/apps/tests
+      - ./../apps/tests:/home/wywy
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
     depends_on:
       postgres:

@@ -1,5 +1,9 @@
 FROM debian:trixie-20230612
 
+# create non-root user for runtime
+# RUN groupadd -g 2523 Wywy-Website
+# RUN useradd -g Wywy-Website -u ${USER_ID} wywy
+
 RUN apt-get update && \
     apt-get install -y curl gnupg && \
     rm -rf /var/lib/apt/lists/*

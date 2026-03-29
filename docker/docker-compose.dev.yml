@@ -3,12 +3,13 @@ name: master-database
 services:
   sql_receptionist:
     tty: true
-    # image: gcc:latest
-    working_dir: /apps/sql-receptionist
     build:
       context: ../
-      dockerfile: apps/sql-receptionist/Dockerfile.dev
-      # target: builder
+      dockerfile: apps/sql-receptionist/Dockerfile
+      target: dev
+      args:
+        USER_ID: ${USER_ID}
+        LIBCYAML_VARIANT: debug
     env_file:
       - path: ${UNIVERSAL_CONFIG_DIR}/.env
         required: true
@@ -43,16 +44,16 @@ services:
       - default
     # compile and run the application.
     # Do not close the container on error.
-    command: bash -c "make clean && make && exec valgrind --leak-check=yes --show-leak-kinds=definite ./app"
+    command: make clean && make && exec valgrind --leak-check=yes --show-leak-kinds=definite ./app
 
   create_tables:
     tty: true
-    working_dir: /apps/create_tables
     build:
       context: ../
       dockerfile: apps/create_tables/Dockerfile
       args:
         CONFIG_PATH: ${UNIVERSAL_CONFIG_DIR}/config.yml
+        USER_ID: ${USER_ID}
     env_file:
       - path: ${UNIVERSAL_CONFIG_DIR}/.env
         required: true
@@ -73,12 +74,11 @@ services:
           target: ./apps/create_tables
           initial_sync: true
     volumes:
-      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/apps/create_tables/config.yml
+      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/home/create_tables/config.yml
       - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/create_tables
     depends_on:
       postgres:
         condition: service_healthy
-    command: python3 create_tables.py
 
   # @TODO secrets for db authentication
   postgres:
@@ -131,7 +131,6 @@ services:
     secrets:
       - ssh_private_key
       - ssh_backup_public_key
-    command: ./entrypoint.sh
 
 networks:
   default: {}
