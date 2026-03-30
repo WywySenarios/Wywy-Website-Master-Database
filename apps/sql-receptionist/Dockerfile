@@ -1,34 +1,72 @@
-FROM gcc:15-trixie AS builder
-WORKDIR /apps/sql-receptionist
+# fetch necessary libraries
+FROM gcc:15-trixie AS fetcher
 
-ENV LD_LIBRARY_PATH=/usr/local/lib
-
+# install packages needed for fetch
 RUN apt-get update && apt-get install -y \
-    libpq-dev \
-    libyaml-dev \
     wget \
     bzip2
+
 # @TODO verification with gnupg
 
 RUN wget https://github.com/akheron/jansson/releases/download/v2.14.1/jansson-2.14.1.tar.bz2 \
-    && bunzip2 -c jansson-2.14.1.tar.bz2 | tar xf - \
-    && cd jansson-2.14.1 \
-    && ./configure \
-    && make \
-    && make check \
-    && make install
+    && bunzip2 -c jansson-2.14.1.tar.bz2 > /tmp/jansson.tar
+RUN wget -O /tmp/libcyaml.tar.gz https://github.com/tlsa/libcyaml/archive/refs/tags/v1.4.2.tar.gz
 
-RUN wget https://github.com/tlsa/libcyaml/archive/refs/tags/v1.4.2.tar.gz \
-    && tar -xvzf v1.4.2.tar.gz \
-    && cd libcyaml-1.4.2 \
-    && make \
-    && make install VARIANT=debug
+# compilation stage
+FROM gcc:15-trixie AS builder
 
-COPY ./apps/sql-receptionist .
+ARG USER_ID
+ARG LIBCYAML_VARIANT
+
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
+# create non-root user for runtime
+RUN groupadd -g 2523 Wywy-Website
+RUN useradd -g Wywy-Website -u ${USER_ID} -m -d /home/sql-receptionist sql-receptionist
+
+# compile Jansson library
+COPY --from=fetcher /tmp/jansson.tar /tmp/jansson.tar
+RUN mkdir -p /tmp/jansson
+RUN tar -xf /tmp/jansson.tar -C /tmp/jansson
+WORKDIR /tmp/jansson/jansson-2.14.1
+RUN ./configure
+RUN make
+RUN make check
+RUN make install
+
+# compile libcyaml library
+COPY --from=fetcher /tmp/libcyaml.tar.gz /tmp/libcyaml.tar.gz
+RUN mkdir -p /tmp/libcyaml
+RUN tar -xzf /tmp/libcyaml.tar.gz -C /tmp/libcyaml
+WORKDIR /tmp/libcyaml/libcyaml-1.4.2
+RUN make
+RUN make install VARIANT=${LIBCYAML_VARIANT}
+
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    libyaml-dev
+
+COPY --chown=sql-receptionist:Wywy-Website /apps/sql-receptionist /home/sql-receptionist
+
+WORKDIR /home/sql-receptionist
+USER sql-receptionist
 
 RUN make clean
 RUN make
 
 EXPOSE 2523
 
-CMD ["./app"]
+FROM builder AS dev
+WORKDIR /home/sql-receptionist
+
+ENTRYPOINT ["/home/sql-receptionist/app"]
+
+FROM builder AS prod
+WORKDIR /home/sql-receptionist
+
+RUN apt-get install -y \
+    valgrind \
+    gdb \
+    nano
+
+ENTRYPOINT ["bash", "-c"]

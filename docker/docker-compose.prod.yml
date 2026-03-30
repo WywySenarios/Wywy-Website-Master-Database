@@ -2,55 +2,17 @@ name: master-database
 
 services:
   sql_receptionist:
-    tty: true
-    # image: gcc:latest
-    working_dir: /apps/sql-receptionist
     build:
-      context: ../
-      dockerfile: apps/sql-receptionist/Dockerfile
-      # target: builder
-    env_file:
-      - path: ${UNIVERSAL_CONFIG_DIR}/.env
-        required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
-        required: true
-    secrets:
-      - admin
+      target: prod
+      args:
+        LIBCYAML_VARIANT: release
     networks:
       - cloudflared
       - postgres
-    ports:
-      - 2523:2523
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
-      - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/master-database
-    command: ./app
 
   create_tables:
-    tty: true
-    working_dir: /apps/create_tables
-    build:
-      context: ../
-      dockerfile: apps/create_tables/Dockerfile
-      args:
-        CONFIG_PATH: ${UNIVERSAL_CONFIG_DIR}/config.yml
-    env_file:
-      - path: ${UNIVERSAL_CONFIG_DIR}/.env
-        required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
-        required: true
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - postgres
-    volumes:
-      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/apps/create_tables/config.yml
-      - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/create_tables
-    command: python3 create_tables.py
 
   cloudflared:
     working_dir: /apps/cloudflared
@@ -69,52 +31,8 @@ services:
 
   # @TODO secrets for db authentication
   postgres:
-    build:
-      context: ../
-      dockerfile: apps/postgres/Dockerfile
-      target: db
-    restart: always
-    env_file:
-      - path: ${UNIVERSAL_CONFIG_DIR}/.env
-        required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/backup/.env
-        required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
-        required: true
-    environment:
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_USER: ${DATABASE_USERNAME}
-      PGDATA: /var/lib/postgresql/data
-    ports:
-      - ${DATABASE_PORT}:${DATABASE_PORT}
     networks:
       - postgres
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "pg_isready",
-          "-U",
-          "${DATABASE_USERNAME}",
-          "-p",
-          "${DATABASE_PORT}",
-        ]
-      interval: 5m
-      timeout: 5s
-      start_period: 3s
-      retries: 10
-    volumes:
-      - ${DATA_DIR}/master-database/postgres:/var/lib/postgresql/data
-      - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
-      - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/master-database
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    shm_size: 128mb
-    secrets:
-      - ssh_private_key
-      - ssh_backup_public_key
-    command: ./entrypoint.sh
 
 networks:
   cloudflared:
@@ -126,11 +44,3 @@ networks:
 secrets:
   cloudflared_token:
     file: ${SECRETS_DIR}/master-database/cloudflared-cloudflare-token.txt
-  admin:
-    file: ${SECRETS_DIR}/admin.txt
-  ssh_private_key:
-    file: ${SECRETS_DIR}/id_ed25519
-  ssh_public_key:
-    file: ${SECRETS_DIR}/id_ed25519.pub
-  ssh_backup_public_key:
-    file: ${SECRETS_DIR}/backup/ssh_host_ed25519_key.pub
