@@ -2,20 +2,12 @@ name: master-database
 
 services:
   sql_receptionist:
-    tty: true
     build:
-      context: ../
-      dockerfile: apps/sql-receptionist/Dockerfile
       target: dev
       args:
-        USER_ID: ${USER_ID}
         LIBCYAML_VARIANT: debug
     env_file:
-      - path: ${UNIVERSAL_CONFIG_DIR}/.env
-        required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/.env.dev
-        required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
         required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env.dev
         required: true
@@ -29,16 +21,6 @@ services:
           path: ${UNIVERSAL_CONFIG_DIR}/config.yml
           target: /config.yml
           initial_sync: true
-    volumes:
-      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
-      - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/master-database
-    secrets:
-      - admin
-    ports:
-      - 2523:2523
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - wywy_website_master_database-sql_receptionist
       - default
@@ -47,19 +29,8 @@ services:
     command: make clean && make && exec valgrind --leak-check=yes --show-leak-kinds=definite ./app
 
   create_tables:
-    tty: true
-    build:
-      context: ../
-      dockerfile: apps/create_tables/Dockerfile
-      args:
-        CONFIG_PATH: ${UNIVERSAL_CONFIG_DIR}/config.yml
-        USER_ID: ${USER_ID}
     env_file:
-      - path: ${UNIVERSAL_CONFIG_DIR}/.env
-        required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/.env.dev
-        required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
         required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env.dev
         required: true
@@ -73,12 +44,6 @@ services:
           path: ./../apps/create_tables
           target: ./apps/create_tables
           initial_sync: true
-    volumes:
-      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/home/create_tables/config.yml
-      - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/create_tables
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   # @TODO secrets for db authentication
   postgres:
@@ -88,61 +53,14 @@ services:
       target: db
     restart: always
     env_file:
-      - path: ${UNIVERSAL_CONFIG_DIR}/.env
-        required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/.env.dev
-        required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/backup/.env
         required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/backup/.env.dev
         required: true
-      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
-        required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env.dev
         required: true
-    environment:
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_USER: ${DATABASE_USERNAME}
-      PGDATA: /var/lib/postgresql/data
-    ports:
-      - ${DATABASE_PORT}:${DATABASE_PORT}
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "pg_isready",
-          "-U",
-          "${DATABASE_USERNAME}",
-          "-p",
-          "${DATABASE_PORT}",
-        ]
-      interval: 5m
-      timeout: 5s
-      start_period: 3s
-      retries: 10
-    volumes:
-      - ${DATA_DIR}/master-database/postgres:/var/lib/postgresql/data
-      - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
-      - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/master-database
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    shm_size: 128mb
-    secrets:
-      - ssh_private_key
-      - ssh_backup_public_key
 
 networks:
   default: {}
   wywy_website_master_database-sql_receptionist:
     name: wywy_website_master_database-sql_receptionist
-
-secrets:
-  admin:
-    file: ${SECRETS_DIR}/admin.txt
-  ssh_private_key:
-    file: ${SECRETS_DIR}/id_ed25519
-  ssh_public_key:
-    file: ${SECRETS_DIR}/id_ed25519.pub
-  ssh_backup_public_key:
-    file: ${SECRETS_DIR}/backup/ssh_host_ed25519_key.pub
