@@ -65,11 +65,7 @@ RUN apt-get install -y \
 
 USER sql-receptionist
 
-ENTRYPOINT ["/home/sql-receptionist/app"]
-
 FROM builder AS prod
 WORKDIR /home/sql-receptionist
 
 USER sql-receptionist
-
-ENTRYPOINT ["bash", "-c"]

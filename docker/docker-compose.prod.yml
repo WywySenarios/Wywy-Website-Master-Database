@@ -9,6 +9,7 @@ services:
     networks:
       - cloudflared
       - postgres
+    command: /home/sql-receptionist/app
 
   create_tables:
     networks:
