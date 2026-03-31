@@ -49,7 +49,6 @@ RUN apt-get update && apt-get install -y \
 COPY --chown=sql-receptionist:Wywy-Website /apps/sql-receptionist /home/sql-receptionist
 
 WORKDIR /home/sql-receptionist
-USER sql-receptionist
 
 RUN make clean
 RUN make
@@ -59,14 +58,18 @@ EXPOSE 2523
 FROM builder AS dev
 WORKDIR /home/sql-receptionist
 
+RUN apt-get install -y \
+    valgrind \
+    gdb \
+    nano
+
+USER sql-receptionist
+
 ENTRYPOINT ["/home/sql-receptionist/app"]
 
 FROM builder AS prod
 WORKDIR /home/sql-receptionist
 
-RUN apt-get install -y \
-    valgrind \
-    gdb \
-    nano
+USER sql-receptionist
 
 ENTRYPOINT ["bash", "-c"]
