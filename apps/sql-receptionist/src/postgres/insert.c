@@ -284,12 +284,5 @@ end:
       break;
     }
   }
-  if (!status) {
-    if (errno) {
-      perror("lkjahsdf");
-      puts("lkjhasdlfkjhalkjshdflkjhasdf\n");
-    }
-    puts("laksjdflhasdf\n");
-  }
   return status;
 }
