@@ -4,6 +4,6 @@
 [submodule "apps/tests/types"]
 	path = apps/tests/Wywy_Website_Types
 	url = https://github.com/WywySenarios/Wywy-Website-Python-Types
-[submodule "apps/tests/testing_helpers"]
+[submodule "apps/tests/generic_database_api"]
 	path = apps/tests/generic_database_api/
-	url = https://github.com/WywySenarios/Wywy-Website-Testing-Helpers
+	url = https://github.com/WywySenarios/Wywy-Website-Database-Testing
