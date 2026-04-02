@@ -1,6 +1,6 @@
 from os import environ
 from typing import Literal, Any
-from Wywy_Website_Types import Datatype, PostgresDatatype
+from wywy_website_types import Datatype, PostgresDatatype
 from string import Template
 
 SQL_RECEPTIONIST_URL = f"http://{environ["SQL_RECEPTIONIST_HOST"]}:2523"
