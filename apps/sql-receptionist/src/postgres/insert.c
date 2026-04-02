@@ -262,9 +262,9 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
 
     if (strcmp(options->schema[i].datatype, "geodetic point") == 0) {
       cur_write_column_name(options->schema[i].name);
-      cur_memcpy("_accuracy = EXCLUDED.");
+      cur_memcpy("_latlong_accuracy = EXCLUDED.");
       cur_write_column_name(options->schema[i].name);
-      cur_memcpy("_accuracy,");
+      cur_memcpy("_latlong_accuracy,");
       cur_write_column_name(options->schema[i].name);
       cur_memcpy("_altitude = EXCLUDED.");
       cur_write_column_name(options->schema[i].name);
