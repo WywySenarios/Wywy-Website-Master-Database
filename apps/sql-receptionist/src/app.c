@@ -686,6 +686,12 @@ void *handle_client(void *arg) {
 
         char *descriptor_name = url_segments[3];
 
+        if (!descriptor_name) {
+          build_response(400, &response, &response_len,
+                         "No descriptor was provided.");
+          goto schema_mismatch_end;
+        }
+
         // look for the respective descriptor
         for (int i = 0; i < table->descriptors_count; i++) {
           if (str_cci_cmp(table->descriptors[i].name, descriptor_name) == 0) {
