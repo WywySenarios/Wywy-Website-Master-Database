@@ -667,7 +667,7 @@ void *handle_client(void *arg) {
         goto schema_mismatch_end;
       }
 
-      struct insert_options options = {table_name, NULL, -1, 0, "id", "id"};
+      struct insert_options options = {table_name, NULL, -1, 0, "id", 0, "id"};
       if (strcmp(target_type, "data") == 0) {
         // no additional checks needed
         options.schema = table->schema;
@@ -755,6 +755,7 @@ void *handle_client(void *arg) {
         options.schema_count = tag_aliases_schema_count;
 
         options.primary_column_name = "alias";
+        options.primary_column_in_schema = 1;
         options.duplicate_column_name = "alias";
 
         // update target table name

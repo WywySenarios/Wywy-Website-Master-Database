@@ -79,6 +79,7 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   char *column_names = NULL;
   size_t remaining_size = MAX_INSERT_QUERY_SIZE;
   size_t n;
+  int primary_column_present = 0;
   *error_buffer = '\0';
 
   // write in the beginning of the query
@@ -99,6 +100,28 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   size_t columns_consumed = 0;
   json_t *current_item = NULL;
   column_names = cur;
+  // check for UPSERT id column
+  if (!options->primary_column_in_schema) {
+    write_and_access_column(options->primary_column_name);
+    if (current_item) {
+      if (!json_is_integer(current_item)) {
+        memcpy(
+            error_buffer,
+            "Datatype datatype: the primary column should be an integer.",
+            strlen(
+                "Datatype mismatch: the primary column should be an integer.") +
+                1);
+        return 0;
+      }
+      primary_column_present = 1;
+      columns_consumed++;
+    } else {
+      // reset cur
+      remaining_size += cur - column_names;
+      cur = column_names;
+    }
+  }
+
   // check for primary_tag
   if (options->primary_tag) {
     write_and_access_column("primary_tag");
@@ -224,6 +247,10 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   current_column_name = column_names;
   char *temp_cur = NULL;
   // build VALUES
+  if (primary_column_present) {
+    write_next_json_value();
+  }
+
   if (options->primary_tag) {
     write_next_json_value();
   }
@@ -252,6 +279,17 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   // otherwise, the ID column is the conflicting column (i.e. it does not need
   // to be updated). this is fragile design and should be fixed when the need
   // arises. I think this will go unfixed for a very long time.
+  if (primary_column_present) {
+    cur_write_column_name(options->primary_column_name);
+    cur_memcpy(" = EXCLUDED.");
+    cur_write_column_name(options->primary_column_name);
+    cur_append(',');
+  }
+
+  // primary tag
+  if (options->primary_tag) {
+    cur_memcpy("primary_tag = EXCLUDED.primary_tag,");
+  }
 
   // handle the bulk data
   for (int i = 0; i < options->schema_count; i++) {
