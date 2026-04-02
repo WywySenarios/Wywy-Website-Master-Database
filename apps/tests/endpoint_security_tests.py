@@ -17,7 +17,7 @@ def test_endpoint_security(test_object: unittest.TestCase, endpoint: str) -> Non
     test_object.assertEqual(
         response.status_code,
         401,
-        f"Unauthenticated response did not respond with status 401: {response.status_code}: {response.text}",
+        f"Unauthenticated request did not respond with status 401: {response.status_code}: {response.text}",
     )
 
     # check if modifying authentication details invalidates the authentication
