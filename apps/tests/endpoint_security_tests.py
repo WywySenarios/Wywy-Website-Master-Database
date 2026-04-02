@@ -38,7 +38,7 @@ def test_endpoint_security(test_object: unittest.TestCase, endpoint: str) -> Non
         )
 
     for key in AUTH_COOKIES:
-        cookies = AUTH_COOKIES
+        cookies = {**AUTH_COOKIES}
         cookies[key] += " <- is now invalid"
 
         response = requests.post(
