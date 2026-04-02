@@ -491,7 +491,7 @@ void *handle_client(void *arg) {
        * Special endpoints:
        * tag_names & tag_aliases are restricted to SELECT * FROM ...;
        */
-      if (strcmp(url_segments[2], "data")) {
+      if (strcmp(url_segments[2], "data") == 0) {
         goto regular_table;
       } else if (strcmp(url_segments[2], "tag_names") == 0) {
         // check if tagging is enabled
