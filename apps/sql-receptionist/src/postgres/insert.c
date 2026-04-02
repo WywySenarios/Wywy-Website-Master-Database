@@ -247,11 +247,11 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   cur_memcpy(") DO UPDATE SET ");
 
   // upsert (update all columns on conflict)
-  // handle the ID column
-  cur_write_column_name(options->primary_column_name);
-  cur_memcpy(" = EXCLUDED.");
-  cur_write_column_name(options->primary_column_name);
-  cur_append(',');
+  // ignore primary column.
+  // for the tag aliases table, the primary column is also a part of the schema.
+  // otherwise, the ID column is the conflicting column (i.e. it does not need
+  // to be updated). this is fragile design and should be fixed when the need
+  // arises. I think this will go unfixed for a very long time.
 
   // handle the bulk data
   for (int i = 0; i < options->schema_count; i++) {
