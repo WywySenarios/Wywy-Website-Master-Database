@@ -709,7 +709,7 @@ void *handle_client(void *arg) {
 
         // update target table name
         int old_table_name_len = strlen(table_name);
-        url_segments[1] = table_name =
+        options.table_name = url_segments[1] = table_name =
             realloc(table_name, old_table_name_len + strlen(descriptor_name) +
                                     strlen("__descriptors") + 1);
         snprintf(table_name + old_table_name_len,
