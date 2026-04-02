@@ -242,21 +242,55 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   cur--;
   remaining_size++;
 
-  n = snprintf(
-      cur, remaining_size,
-      ") ON CONFLICT (%s) DO UPDATE SET %s = EXCLUDED.%s RETURNING %s;",
-      options->duplicate_column_name, options->duplicate_column_name,
-      options->duplicate_column_name, options->primary_column_name);
-  if (errno) {
-    goto end;
+  cur_memcpy(") ON CONFLICT (");
+  cur_write_column_name(options->duplicate_column_name);
+  cur_memcpy(") DO UPDATE SET ");
+
+  // upsert (update all columns on conflict)
+  // handle the ID column
+  cur_write_column_name(options->primary_column_name);
+  cur_memcpy(" = EXCLUDED.");
+  cur_write_column_name(options->primary_column_name);
+  cur_append(',');
+
+  // handle the bulk data
+  for (int i = 0; i < options->schema_count; i++) {
+    cur_write_column_name(options->schema[i].name);
+    cur_memcpy(" = EXCLUDED.");
+    cur_write_column_name(options->schema[i].name);
+    cur_append(',');
+
+    if (strcmp(options->schema[i].datatype, "geodetic point") == 0) {
+      cur_write_column_name(options->schema[i].name);
+      cur_memcpy("_accuracy = EXCLUDED.");
+      cur_write_column_name(options->schema[i].name);
+      cur_memcpy("_accuracy,");
+      cur_write_column_name(options->schema[i].name);
+      cur_memcpy("_altitude = EXCLUDED.");
+      cur_write_column_name(options->schema[i].name);
+      cur_memcpy("_altitude,");
+      cur_write_column_name(options->schema[i].name);
+      cur_memcpy("_altitude_accuracy = EXCLUDED.");
+      cur_write_column_name(options->schema[i].name);
+      cur_memcpy("_altitude_accuracy,");
+    }
+
+    if (options->schema[i].comments) {
+      cur_write_column_name(options->schema[i].name);
+      cur_memcpy("_comments = EXCLUDED.");
+      cur_write_column_name(options->schema[i].name);
+      cur_memcpy("_comments,");
+    }
   }
-  if (remaining_size <= n) {
-    errno = ENOMEM;
-    goto end;
-  }
-  cur += n;
-  remaining_size -= n;
-  *cur = '\0';
+
+  // remove trailing comma
+  cur--;
+  remaining_size++;
+
+  cur_memcpy(" RETURNING ");
+  cur_write_column_name(options->primary_column_name);
+  cur_append(';');
+  cur_append('\0');
 
   // query database
   sql_query(query, res, conn);
