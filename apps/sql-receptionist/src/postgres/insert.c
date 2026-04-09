@@ -220,11 +220,6 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
           return 0;
         }
         cur_append(',');
-      } else {
-        // pull back cur
-        n = strlen(options->schema[i].name) + strlen("_comments");
-        remaining_size += n;
-        cur -= n;
       }
     }
   }
@@ -262,6 +257,10 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
       write_next_json_value(); // latlong_accuracy
       write_next_json_value(); // altitude
       write_next_json_value(); // altitude_accuracy
+    }
+
+    if (options->schema[i].comments) {
+      write_next_json_value();
     }
   }
 
