@@ -187,10 +187,6 @@ void *handle_client(void *arg) {
   // receive request data from client and store into buffer
   ssize_t bytes_received = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
 
-  if (getenv("SQL_RECEPTIONIST_LOG_REQUESTS") &&
-      strcmp(getenv("SQL_RECEPTIONIST_LOG_REQUESTS"), "TRUE") == 0)
-    log_debug_printf("%s\n", buffer);
-
   if (bytes_received <= 0) {
     build_response(400, &response, &response_len, "No request data received.");
     goto end;
@@ -200,6 +196,10 @@ void *handle_client(void *arg) {
   char *body = strstr(buffer, "\r\n\r\n");
   if (body)
     body += 4;
+
+  if (getenv("SQL_RECEPTIONIST_LOG_REQUESTS") &&
+      strcmp(getenv("SQL_RECEPTIONIST_LOG_REQUESTS"), "TRUE") == 0)
+    log_debug_printf("%s\n", buffer);
 
   // @warning HTTP/1 not matching?
   // ^([A-Z]+) /([^ ]*) HTTP/[12]\\.[0-9]
