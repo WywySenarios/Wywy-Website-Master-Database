@@ -55,23 +55,23 @@ void construct_select_query(struct select_options *options, char *buffer,
   const int table_name_len = strlen(options->table_name);
 
   // construct query
-  cur_memcpy("SELECT ");
+  cur_memcpy(cur, remaining_size, "SELECT ");
 
   // columns
   // id column
   if (options->id_column) {
-    cur_write_table_name();
-    cur_memcpy(".id,");
+    cur_write_table_name(cur, remaining_size);
+    cur_memcpy(cur, remaining_size, ".id,");
   }
 
   // primary tag column
   if (options->primary_tag) {
     if (options->transform_tag_names) {
-      cur_write_table_name();
-      cur_memcpy("_tag_names.tag_name AS primary_tag,");
+      cur_write_table_name(cur, remaining_size);
+      cur_memcpy(cur, remaining_size, "_tag_names.tag_name AS primary_tag,");
     } else {
-      cur_write_table_name();
-      cur_memcpy(".primary_tag,");
+      cur_write_table_name(cur, remaining_size);
+      cur_memcpy(cur, remaining_size, ".primary_tag,");
     }
   }
 
@@ -84,50 +84,50 @@ void construct_select_query(struct select_options *options, char *buffer,
       // ST_AsText([main_column]), [latlong_accuracy], [altitude],
       // [altitude_accuracy],
       // main column
-      cur_memcpy("ST_AsText(");
-      cur_write_full_column_name();
-      cur_memcpy(") AS ");
-      cur_write_column_name(options->schema[i].name);
-      cur_append(',');
+      cur_memcpy(cur, remaining_size, "ST_AsText(");
+      cur_write_full_column_name(cur, remaining_size);
+      cur_memcpy(cur, remaining_size, ") AS ");
+      cur_write_column_name(cur, remaining_size, options->schema[i].name);
+      cur_append(cur, remaining_size, ',');
 
       // latlong_accuracy
-      cur_write_full_column_name();
-      cur_memcpy("_latlong_accuracy,");
+      cur_write_full_column_name(cur, remaining_size);
+      cur_memcpy(cur, remaining_size, "_latlong_accuracy,");
 
       // altitude
-      cur_write_full_column_name();
-      cur_memcpy("_altitude,");
+      cur_write_full_column_name(cur, remaining_size);
+      cur_memcpy(cur, remaining_size, "_altitude,");
 
       // altitude_accuracy
-      cur_write_full_column_name();
-      cur_memcpy("_altitude_accuracy,");
+      cur_write_full_column_name(cur, remaining_size);
+      cur_memcpy(cur, remaining_size, "_altitude_accuracy,");
     } else {
-      cur_write_full_column_name();
-      cur_append(',');
+      cur_write_full_column_name(cur, remaining_size);
+      cur_append(cur, remaining_size, ',');
     }
 
     // comments column
     if (options->schema[i].comments) {
-      cur_write_full_column_name();
-      cur_memcpy("_comments,");
+      cur_write_full_column_name(cur, remaining_size);
+      cur_memcpy(cur, remaining_size, "_comments,");
     }
   }
 
   // get rid of trailing comma
   cur--;
   remaining_size++;
-  cur_memcpy(" FROM ");
-  cur_write_table_name();
+  cur_memcpy(cur, remaining_size, " FROM ");
+  cur_write_table_name(cur, remaining_size);
 
   // JOINs
   if (options->primary_tag && options->transform_tag_names) {
-    cur_memcpy(" LEFT JOIN ");
-    cur_write_table_name();
-    cur_memcpy("_tag_names ON ");
-    cur_write_table_name();
-    cur_memcpy(".primary_tag=");
-    cur_write_table_name();
-    cur_memcpy("_tag_names.id");
+    cur_memcpy(cur, remaining_size, " LEFT JOIN ");
+    cur_write_table_name(cur, remaining_size);
+    cur_memcpy(cur, remaining_size, "_tag_names ON ");
+    cur_write_table_name(cur, remaining_size);
+    cur_memcpy(cur, remaining_size, ".primary_tag=");
+    cur_write_table_name(cur, remaining_size);
+    cur_memcpy(cur, remaining_size, "_tag_names.id");
   }
 
   n = snprintf(cur, remaining_size, " ORDER BY %s %s LIMIT %d;",
@@ -162,7 +162,7 @@ void construct_select_query(struct select_options *options, char *buffer,
   }
 
   // null termination
-  cur_append('\0');
+  cur_append(cur, remaining_size, '\0');
 
 end:
   return;
