@@ -17,7 +17,7 @@ int check_datelike(const json_t *json) {
   if (json_is_string(json)) {
     const char *text = json_string_value(json);
     regex_t check_regex;
-    regcomp(&check_regex, "'[0-9]{1,4}-[0-9]{2}-[0-9]{2}'", REG_EXTENDED);
+    regcomp(&check_regex, "[0-9]{1,4}-[0-9]{2}-[0-9]{2}", REG_EXTENDED);
     // Alternative pattern (does not account for february 29):
     // xxxx-[1<=num<=12]-[valid date within that month]:
     // ([0-9]{1,4})-?((02)-?([0]|[12][0-9])|(01|03|05|07|08|10|12)-?(0[1-9]|[12][0-9]|3[01])|(04|06|09|11)-?(0[1-9]|[12][0-9]|30))
@@ -55,8 +55,8 @@ int check_timelike(const json_t *json) {
     const char *text = json_string_value(json);
     regex_t check_regex;
     regcomp(&check_regex,
-            "'([0-9]{2}:[0-9]{2}:[0-9]{2}|[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{1,6}"
-            "|T[0-9]{6}|T[0-9]{6}.[0-9]{1,6})'",
+            "([0-9]{2}:[0-9]{2}:[0-9]{2}|[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{1,6}"
+            "|T[0-9]{6}|T[0-9]{6}.[0-9]{1,6})",
             REG_EXTENDED);
 
     regmatch_t check_matches[2];
@@ -88,8 +88,8 @@ int check_timestamplike(const json_t *json) {
     const char *text = json_string_value(json);
     regex_t check_regex;
     regcomp(&check_regex,
-            "'([0-9]{1,4}-[0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2}|[0-9]{"
-            "2}:[0-9]{2}:[0-9]{2}.[0-9]{1,6}|T[0-9]{6}|T[0-9]{6}.[0-9]{1,6})'",
+            "([0-9]{1,4}-[0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2}|[0-9]{"
+            "2}:[0-9]{2}:[0-9]{2}.[0-9]{1,6}|T[0-9]{6}|T[0-9]{6}.[0-9]{1,6})",
             REG_EXTENDED);
 
     regmatch_t check_matches[2];
@@ -135,7 +135,7 @@ int check_st_point(const json_t *json) {
   regex_t preg;
 
   if (regcomp(&preg,
-              "^'POINT ?\\((-?[0-9]+(\\.[0-9]+)?) (-?[0-9]+(\\.[0-9]+)?)\\)'$",
+              "^POINT ?\\((-?[0-9]+(\\.[0-9]+)?) (-?[0-9]+(\\.[0-9]+)?)\\)$",
               REG_EXTENDED) != 0) {
     return -1;
   }
