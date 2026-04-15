@@ -60,7 +60,7 @@
 
 #define write_placeholder_value()                                              \
   do {                                                                         \
-    if (current_item != NULL) {                                                \
+    if (current_item != NULL && !json_is_null(current_item)) {                 \
       placeholder_ptrs[columns_consumed++] = placeholder_cur;                  \
       cur_write_json_value(placeholder_cur, placeholder_remaining_size,        \
                            current_item);                                      \
