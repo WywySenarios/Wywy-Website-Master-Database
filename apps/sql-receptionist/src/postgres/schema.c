@@ -248,6 +248,10 @@ int validate_column(const json_t *item, struct data_column column_schema,
       return 0;
     }
 
+    // ALWAYS optional
+    if (json_is_null(item))
+      return 1;
+
     // altitude should be a double precision.
     if (!json_is_real(item)) {
       if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
