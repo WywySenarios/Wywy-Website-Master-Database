@@ -227,15 +227,15 @@ int validate_column(const json_t *item, struct data_column column_schema,
       return 0;
     }
 
-    // comments should be strings.
-    if (json_is_string(item) == 0) {
-      if (getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES") &&
-          strcmp(getenv("SQL_RECEPTIONIST_LOG_SCHEMA_FAILURES"), "TRUE") == 0)
-        log_debug_printf("The comment for column %s was empty.\n",
-                         column_schema.name);
-      return 0;
+    // ALWAYS optional
+    if (json_is_null(item))
+      return 1;
+
+    // comments should be strings
+    if (json_is_string(item)) {
+      return 1;
     }
-    return 1;
+    return 0;
   case ALTITUDE: // innocent until proven guilty
     // the related column should be a geodetic point.
     if (strcmp(column_schema.datatype, "geodetic point") != 0) {
