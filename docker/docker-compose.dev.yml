@@ -15,7 +15,7 @@ services:
       watch:
         - action: sync+restart
           path: ./../apps/sql-receptionist
-          target: ./apps/sql-receptionist
+          target: /home/sql-receptionist
           initial_sync: true
         - action: sync+restart
           path: ${UNIVERSAL_CONFIG_DIR}/config.yml
