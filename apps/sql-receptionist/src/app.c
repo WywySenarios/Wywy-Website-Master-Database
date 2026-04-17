@@ -479,20 +479,30 @@ void *handle_client(void *arg) {
     // check if the database & table may be accessed freely
     if (table->read) {
       // try to access the database and query
-
-      // @todo allow-list input validation
-      // @todo still vulnerable to changing the config
-
-      if (!url_segments[2]) {
-        goto regular_table;
-      }
+      struct select_options options = {
+          table_name, "id", NULL, table->schema,        table->schema_count,
+          1,          0,    1,    SELECT_DEFAULT_LIMIT, 0};
 
       /*
        * Special endpoints:
        * tag_names & tag_aliases are restricted to SELECT * FROM ...;
        */
-      if (strcmp(url_segments[2], "data") == 0) {
-        goto regular_table;
+      if (!url_segments[2] || strcmp(url_segments[2], "data") == 0) {
+        if (table->tagging)
+          options.primary_tag = 1;
+      } else if (strcmp(url_segments[2], "tags") == 0) {
+        if (!table->tagging) {
+          build_response_printf(400, &response, &response_len,
+                                strlen("Tagging is not enabled on table \"\""),
+                                "Tagging is not enabled on table \"%s\"",
+                                table_name);
+          goto end;
+        }
+
+        options.table_name = url_segments[1] = table_name =
+            replace_table_name(table_name, "_tags");
+        options.schema = tags_schema;
+        options.schema_count = tags_schema_count;
       } else if (strcmp(url_segments[2], "tag_names") == 0) {
         // check if tagging is enabled
         if (!table->tagging) {
@@ -503,12 +513,10 @@ void *handle_client(void *arg) {
           goto end;
         }
 
-        size_t query_len =
-            strlen("SELECT * FROM _tag_names;") + strlen(table_name);
-        query = malloc(query_len + 1);
-        snprintf(query, query_len, "SELECT * FROM %s_tag_names;", table_name);
-        generic_select_query_and_respond(database_name, query, &res, &conn,
-                                         &response, &response_len);
+        options.table_name = url_segments[1] = table_name =
+            replace_table_name(table_name, "_tag_names");
+        options.schema = tag_names_schema;
+        options.schema_count = tag_names_schema_count;
       } else if (strcmp(url_segments[2], "tag_aliases") == 0) {
         // check if tagging is enabled
         if (!table->tagging) {
@@ -519,18 +527,17 @@ void *handle_client(void *arg) {
           goto end;
         }
 
-        size_t query_len =
-            strlen("SELECT * FROM _tag_aliases;") + strlen(table_name);
-        query = malloc(query_len + 1);
-        snprintf(query, query_len, "SELECT * FROM %s_tag_aliases;", table_name);
-        generic_select_query_and_respond(database_name, query, &res, &conn,
-                                         &response, &response_len);
-        goto end;
+        options.table_name = url_segments[1] = table_name =
+            replace_table_name(table_name, "_tag_aliases");
+        options.schema = tag_aliases_schema;
+        options.schema_count = tag_aliases_schema_count;
+        options.order_by_column = "alias";
+        options.id_column = 0;
       } else {
-        build_response(400, &response, &response_len, "Bad URL.");
-      }
-      goto end;
-    regular_table: // @todo catch tags & tag_groups
+        build_response(400, &response, &response_len,
+                       "Unknown or unsupported table URL.");
+        goto end;
+      } // @TODO tag groups
       // REQUIRES querystring to run
       if (querystring == NULL) {
         build_response(400, &response, &response_len,
@@ -549,18 +556,6 @@ void *handle_client(void *arg) {
         goto end;
       }
       regex_iterator_load_target(querystring_regex, querystring);
-
-      // many of these need to be non-null:
-      struct select_options options = {table_name,
-                                       "id",
-                                       NULL,
-                                       table->schema,
-                                       table->schema_count,
-                                       1,
-                                       table->tagging ? 1 : 0,
-                                       1,
-                                       SELECT_DEFAULT_LIMIT,
-                                       0};
 
       // read every querystring value
       // store every single valid key-value pair.
