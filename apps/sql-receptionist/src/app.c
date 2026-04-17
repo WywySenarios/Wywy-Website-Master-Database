@@ -537,12 +537,57 @@ void *handle_client(void *arg) {
           goto end;
         }
 
-        options.table_name = url_segments[1] = table_name =
-            replace_table_name(table_name, "_tag_aliases");
+        memcpy(computed_table_name, table_name, strlen(table_name));
+        memcpy(computed_table_name + strlen(table_name), "_tag_aliases",
+               strlen("_tag_aliases"));
+        *(computed_table_name + strlen(table_name) + strlen("_tag_aliases")) =
+            '\0';
+
+        options.table_name = computed_table_name;
         options.schema = tag_aliases_schema;
         options.schema_count = tag_aliases_schema_count;
         options.order_by_column = "alias";
         options.id_column = 0;
+      } else if (strcmp(url_segments[2], "descriptors") == 0) {
+        if (!url_segments[3]) {
+          build_response_printf(400, &response, &response_len,
+                                strlen("Descriptor name not provided."),
+                                "Descriptor name not provided.");
+          goto end;
+        }
+
+        int descriptor_schema_found = 0; // innocent until proven guilty
+        char *computed_table_name_cur = computed_table_name;
+        int n;
+
+        // search for the relevant descriptor
+        for (int i = 0; i < table->descriptors_count; i++) {
+          if (strcmp(table->descriptors[i].name, url_segments[3]) == 0) {
+            options.schema = table->descriptors[i].schema;
+            options.schema_count = table->descriptors[i].schema_count;
+            n = strlen(table_name);
+            memcpy(computed_table_name_cur, table_name, n);
+            computed_table_name_cur += n;
+            *computed_table_name_cur++ = '_';
+            n = strlen(table->descriptors[i].name);
+            memcpy(computed_table_name_cur, table->descriptors[i].name, n);
+            computed_table_name_cur += n;
+            memcpy(computed_table_name_cur, "_descriptors",
+                   strlen("_descriptors"));
+            *(computed_table_name_cur + strlen("_descriptors")) = '\0';
+            descriptor_schema_found = 1;
+            break;
+          }
+        }
+
+        if (!descriptor_schema_found) {
+          build_response_printf(400, &response, &response_len,
+                                strlen("Descriptor not found."),
+                                "Descriptor not found.");
+          goto end;
+        }
+
+        options.table_name = computed_table_name;
       } else {
         build_response(400, &response, &response_len,
                        "Unknown or unsupported table URL.");
@@ -971,6 +1016,13 @@ int main(int argc, char const *argv[]) {
         log_info_printf("       + Write: %s\n",
                         global_config->dbs[i].tables[j].write ? "true"
                                                               : "false");
+
+        // transform all descriptor names into lower snake case
+        for (unsigned int k = 0;
+             k < global_config->dbs[i].tables[j].descriptors_count; k++) {
+          to_lower_snake_case(
+              global_config->dbs[i].tables[j].descriptors[k].name);
+        }
       }
     }
   }
