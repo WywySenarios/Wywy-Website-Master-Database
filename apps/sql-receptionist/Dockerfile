@@ -46,12 +46,7 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     libyaml-dev
 
-COPY --chown=sql-receptionist:Wywy-Website /apps/sql-receptionist /home/sql-receptionist
-
 WORKDIR /home/sql-receptionist
-
-RUN make clean
-RUN make
 
 EXPOSE 2523
 
@@ -63,9 +58,16 @@ RUN apt-get install -y \
     gdb \
     nano
 
+COPY --chown=sql-receptionist:Wywy-Website /apps/sql-receptionist /home/sql-receptionist
+
 USER sql-receptionist
 
 FROM builder AS prod
 WORKDIR /home/sql-receptionist
+
+COPY --chown=sql-receptionist:Wywy-Website /apps/sql-receptionist /home/sql-receptionist
+
+RUN make clean
+RUN make
 
 USER sql-receptionist
