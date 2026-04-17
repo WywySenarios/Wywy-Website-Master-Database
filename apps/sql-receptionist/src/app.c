@@ -479,6 +479,7 @@ void *handle_client(void *arg) {
     // check if the database & table may be accessed freely
     if (table->read) {
       // try to access the database and query
+      char computed_table_name[64]; // Identifier max length is 63 or 64
       struct select_options options = {
           table_name, "id", NULL, table->schema,        table->schema_count,
           1,          0,    1,    SELECT_DEFAULT_LIMIT, 0};
@@ -499,8 +500,12 @@ void *handle_client(void *arg) {
           goto end;
         }
 
-        options.table_name = url_segments[1] = table_name =
-            replace_table_name(table_name, "_tags");
+        memcpy(computed_table_name, table_name, strlen(table_name));
+        memcpy(computed_table_name + strlen(table_name), "_tags",
+               strlen("_tags"));
+        *(computed_table_name + strlen(table_name) + strlen("_tags")) = '\0';
+
+        options.table_name = computed_table_name;
         options.schema = tags_schema;
         options.schema_count = tags_schema_count;
       } else if (strcmp(url_segments[2], "tag_names") == 0) {
@@ -513,8 +518,13 @@ void *handle_client(void *arg) {
           goto end;
         }
 
-        options.table_name = url_segments[1] = table_name =
-            replace_table_name(table_name, "_tag_names");
+        memcpy(computed_table_name, table_name, strlen(table_name));
+        memcpy(computed_table_name + strlen(table_name), "_tag_names",
+               strlen("_tag_names"));
+        *(computed_table_name + strlen(table_name) + strlen("_tag_names")) =
+            '\0';
+
+        options.table_name = computed_table_name;
         options.schema = tag_names_schema;
         options.schema_count = tag_names_schema_count;
       } else if (strcmp(url_segments[2], "tag_aliases") == 0) {
