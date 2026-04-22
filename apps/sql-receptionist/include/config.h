@@ -1,5 +1,15 @@
 #include <stdbool.h>
 
+enum table_type {
+  MAIN_TABLE,
+  TAGS_TABLE,
+  TAG_NAMES_TABLE,
+  TAG_ALIASES_TABLE,
+  TAG_GROUPS_TABLE,
+  DESCRIPTORS_TABLE,
+  TAGGING_TABLE, // generic referring to any tagging table
+};
+
 enum column_type {
   DATA,
   COMMENTS,
