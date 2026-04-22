@@ -7,7 +7,6 @@ enum table_type {
   TAG_ALIASES_TABLE,
   TAG_GROUPS_TABLE,
   DESCRIPTORS_TABLE,
-  TAGGING_TABLE, // generic referring to any tagging table
 };
 
 enum column_type {

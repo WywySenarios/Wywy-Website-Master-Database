@@ -43,6 +43,10 @@ struct select_options {
    */
   int transform_tag_names;
   /**
+   * @param filter_table_name The table that the column to filter by is from.
+   */
+  const char *filter_table_name;
+  /**
    * @param filter_column_name The column to filter by.
    */
   const char *filter_column_name;

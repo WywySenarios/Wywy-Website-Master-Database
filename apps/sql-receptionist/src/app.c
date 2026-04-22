@@ -481,8 +481,8 @@ void *handle_client(void *arg) {
       // try to access the database and query
       char computed_table_name[64]; // Identifier max length is 63 or 64
       struct select_options options = {
-          table_name, "id", NULL, table->schema, table->schema_count,  1,
-          0,          1,    NULL, NULL,          SELECT_DEFAULT_LIMIT, 0};
+          table_name, "id", NULL, table->schema, table->schema_count,  1, 0,
+          1,          NULL, NULL, NULL,          SELECT_DEFAULT_LIMIT, 0};
       enum table_type table_type = MAIN_TABLE;
 
       /*
@@ -494,7 +494,7 @@ void *handle_client(void *arg) {
         if (table->tagging)
           options.primary_tag = 1;
       } else if (strcmp(url_segments[2], "tags") == 0) {
-        table_type = TAGGING_TABLE;
+        table_type = TAGS_TABLE;
         // check if tagging is enabled
         if (!table->tagging) {
           build_response_printf(400, &response, &response_len,
@@ -513,7 +513,7 @@ void *handle_client(void *arg) {
         options.schema = tags_schema;
         options.schema_count = tags_schema_count;
       } else if (strcmp(url_segments[2], "tag_names") == 0) {
-        table_type = TAGGING_TABLE;
+        table_type = TAG_NAMES_TABLE;
         // check if tagging is enabled
         if (!table->tagging) {
           build_response_printf(400, &response, &response_len,
@@ -533,7 +533,7 @@ void *handle_client(void *arg) {
         options.schema = tag_names_schema;
         options.schema_count = tag_names_schema_count;
       } else if (strcmp(url_segments[2], "tag_aliases") == 0) {
-        table_type = TAGGING_TABLE;
+        table_type = TAG_ALIASES_TABLE;
         // check if tagging is enabled
         if (!table->tagging) {
           build_response_printf(400, &response, &response_len,
@@ -625,6 +625,7 @@ void *handle_client(void *arg) {
       char key[64];
       char value[64];
       char filter_value[64];
+      char filter_table_name[64];
       while (regex_iterator_match(querystring_regex, 0) == 0) {
         regex_iterator_write_match(querystring_regex, 1, key, 64);
         regex_iterator_write_match(querystring_regex, 2, value, 64);
@@ -655,6 +656,48 @@ void *handle_client(void *arg) {
             goto end;
           default:
             log_critical("Regcomp failed on querystring ID.\n");
+            build_response(
+                400, &response, &response_len,
+                "Something went wrong while trying to parse the querystring.");
+            goto end;
+          }
+        } else if (strcmp(key, "parent_id") == 0) {
+          switch (table_type) {
+          case TAG_ALIASES_TABLE:;
+            int n = strlen(table_name);
+            memcpy(filter_table_name, table_name, n);
+            memcpy(filter_table_name + n, "_tag_names", strlen("_tag_names"));
+            *(filter_table_name + n + strlen("_tag_names")) = '\0';
+            options.filter_table_name = filter_table_name;
+            options.filter_column_name = "id";
+            break;
+          case TAGS_TABLE:
+            options.filter_table_name = table_name;
+            options.filter_column_name = "id";
+            break;
+          case DESCRIPTORS_TABLE:
+            options.filter_table_name = table_name;
+            options.filter_column_name = "id";
+            break;
+          default:
+            build_response(
+                400, &response, &response_len,
+                "This table type does not support selection by parent id.");
+            goto end;
+          }
+
+          switch (regex_check("^[0-9]+$", 1, REG_EXTENDED, 0, value)) {
+          case 1:
+            memcpy(filter_value, value, 64);
+            options.filter_value = filter_value;
+            break;
+          case 0:
+            build_response(
+                400, &response, &response_len,
+                "Invalid parent ID to filter by. Expected an integer.");
+            goto end;
+          default:
+            log_critical("Regcomp failed on querystring parent ID.\n");
             build_response(
                 400, &response, &response_len,
                 "Something went wrong while trying to parse the querystring.");

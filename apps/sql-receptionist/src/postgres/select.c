@@ -119,6 +119,11 @@ void construct_select_query(struct select_options *options, char *buffer,
   cur_memcpy(cur, remaining_size, " FROM ");
   cur_write_table_name(cur, remaining_size);
 
+  if (options->filter_table_name) {
+    cur_append(cur, remaining_size, ',');
+    cur_memcpy(cur, remaining_size, options->filter_table_name);
+  }
+
   // JOINs
   if (options->primary_tag && options->transform_tag_names) {
     cur_memcpy(cur, remaining_size, " LEFT JOIN ");
@@ -133,7 +138,9 @@ void construct_select_query(struct select_options *options, char *buffer,
   // if there is a column name to filter by,
   if (options->filter_column_name != NULL) {
     cur_memcpy(cur, remaining_size, " WHERE ");
-    cur_memcpy(cur, remaining_size, options->table_name);
+    cur_memcpy(cur, remaining_size,
+               options->filter_table_name ? options->filter_table_name
+                                          : options->table_name);
     cur_append(cur, remaining_size, '.');
     cur_memcpy(cur, remaining_size, options->filter_column_name);
     // @TODO use placeholders
