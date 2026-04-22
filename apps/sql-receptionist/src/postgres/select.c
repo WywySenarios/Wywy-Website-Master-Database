@@ -130,6 +130,18 @@ void construct_select_query(struct select_options *options, char *buffer,
     cur_memcpy(cur, remaining_size, "_tag_names.id");
   }
 
+  // if there is a column name to filter by,
+  if (options->filter_column_name != NULL) {
+    cur_memcpy(cur, remaining_size, " WHERE ");
+    cur_memcpy(cur, remaining_size, options->table_name);
+    cur_append(cur, remaining_size, '.');
+    cur_memcpy(cur, remaining_size, options->filter_column_name);
+    // @TODO use placeholders
+    cur_memcpy(cur, remaining_size, "='");
+    cur_memcpy(cur, remaining_size, options->filter_value);
+    cur_append(cur, remaining_size, '\'');
+  }
+
   n = snprintf(cur, remaining_size, " ORDER BY %s %s LIMIT %d;",
                options->order_by_column, options->order_by_order,
                options->limit);

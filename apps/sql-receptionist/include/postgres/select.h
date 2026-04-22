@@ -43,6 +43,14 @@ struct select_options {
    */
   int transform_tag_names;
   /**
+   * @param filter_column_name The column to filter by.
+   */
+  const char *filter_column_name;
+  /**
+   * @param filter_value The value to filter by matching (equality).
+   */
+  const char *filter_value;
+  /**
    * @param limit The upper bound of the number of entries to return. Limit is
    * directly injected into the SELECT query. The query will not be upper
    * bounded if limit is set to a negative integer.

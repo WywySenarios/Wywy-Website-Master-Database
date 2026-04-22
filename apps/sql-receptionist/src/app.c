@@ -481,17 +481,21 @@ void *handle_client(void *arg) {
       // try to access the database and query
       char computed_table_name[64]; // Identifier max length is 63 or 64
       struct select_options options = {
-          table_name, "id", NULL, table->schema,        table->schema_count,
-          1,          0,    1,    SELECT_DEFAULT_LIMIT, 0};
+          table_name, "id", NULL, table->schema, table->schema_count,  1,
+          0,          1,    NULL, NULL,          SELECT_DEFAULT_LIMIT, 0};
+      enum table_type table_type = MAIN_TABLE;
 
       /*
        * Special endpoints:
        * tag_names & tag_aliases are restricted to SELECT * FROM ...;
        */
       if (!url_segments[2] || strcmp(url_segments[2], "data") == 0) {
+        // table_type = MAIN_TABLE;
         if (table->tagging)
           options.primary_tag = 1;
       } else if (strcmp(url_segments[2], "tags") == 0) {
+        table_type = TAGGING_TABLE;
+        // check if tagging is enabled
         if (!table->tagging) {
           build_response_printf(400, &response, &response_len,
                                 strlen("Tagging is not enabled on table \"\""),
@@ -509,6 +513,7 @@ void *handle_client(void *arg) {
         options.schema = tags_schema;
         options.schema_count = tags_schema_count;
       } else if (strcmp(url_segments[2], "tag_names") == 0) {
+        table_type = TAGGING_TABLE;
         // check if tagging is enabled
         if (!table->tagging) {
           build_response_printf(400, &response, &response_len,
@@ -528,6 +533,7 @@ void *handle_client(void *arg) {
         options.schema = tag_names_schema;
         options.schema_count = tag_names_schema_count;
       } else if (strcmp(url_segments[2], "tag_aliases") == 0) {
+        table_type = TAGGING_TABLE;
         // check if tagging is enabled
         if (!table->tagging) {
           build_response_printf(400, &response, &response_len,
@@ -549,6 +555,7 @@ void *handle_client(void *arg) {
         options.order_by_column = "alias";
         options.id_column = 0;
       } else if (strcmp(url_segments[2], "descriptors") == 0) {
+        table_type = DESCRIPTORS_TABLE;
         if (!url_segments[3]) {
           build_response_printf(400, &response, &response_len,
                                 strlen("Descriptor name not provided."),
@@ -614,50 +621,53 @@ void *handle_client(void *arg) {
 
       // read every querystring value
       // store every single valid key-value pair.
-      char *key = NULL;
-      char *value = NULL;
-      int valid = 0;
+      // maximum length of 64 characters
+      char key[64];
+      char value[64];
+      char filter_value[64];
       while (regex_iterator_match(querystring_regex, 0) == 0) {
-        key = regex_iterator_get_match(querystring_regex, 1);
-        value = regex_iterator_get_match(querystring_regex, 2);
-        valid = 0;
+        regex_iterator_write_match(querystring_regex, 1, key, 64);
+        regex_iterator_write_match(querystring_regex, 2, value, 64);
 
         // what type is it?
         if (strcmp(key, "SELECT") == 0) { // legacy code compatability
-          valid = 1;
         } else if (strcmp(key, "ORDER_BY") == 0) {
           if (strcmp(value, "ASC") == 0) {
             options.order_by_order = "ASC";
-            valid = 1;
           } else if (strcmp(value, "DESC") == 0) {
             options.order_by_order = "DESC";
-            valid = 1;
+          } else {
+            build_response(400, &response, &response_len,
+                           "Invalid ORDER_BY value. Expected ASC or DESC.");
+            goto end;
+          }
+        } else if (strcmp(key, "id") == 0) {
+          // the query string value should be an integer.
+          switch (regex_check("^[0-9]+$", 1, REG_EXTENDED, 0, value)) {
+          case 1:
+            options.filter_column_name = "id";
+            memcpy(filter_value, value, 64);
+            options.filter_value = filter_value;
+            break;
+          case 0:
+            build_response(400, &response, &response_len,
+                           "Invalid ID to filter by. Expected an integer.");
+            goto end;
+          default:
+            log_critical("Regcomp failed on querystring ID.\n");
+            build_response(
+                400, &response, &response_len,
+                "Something went wrong while trying to parse the querystring.");
+            goto end;
           }
         } else {
           build_response_printf(400, &response, &response_len,
                                 strlen("Invalid querystring key: \"\".") +
                                     strlen(key),
                                 "Invalid querystring key: \"%s\".", key);
-          free(key);
-          free(value);
           goto end;
         }
 
-        if (!valid) {
-          build_response_printf(400, &response, &response_len,
-                                strlen("Key value pair \"\", \"\" is "
-                                       "invalid.") +
-                                    strlen(key) + strlen(value),
-                                "Key value pair \"%s\", "
-                                "\"%s\" is invalid.",
-                                key, value);
-          free(key);
-          free(value);
-          goto end;
-        }
-
-        free(key);
-        free(value);
         regex_iterator_advance_cur(querystring_regex);
       }
 
@@ -665,12 +675,13 @@ void *handle_client(void *arg) {
       // an order to sort it by.
       if (options.order_by_order && options.limit) {
         char query[QUERY_SIZE_LIMIT];
+        construct_select_query(&options, query, QUERY_SIZE_LIMIT);
         if (errno) {
           perror("Data table SELECT query construction");
           build_response(500, &response, &response_len,
                          "Server-side SELECT query construction failure.");
+          goto end;
         }
-        construct_select_query(&options, query, QUERY_SIZE_LIMIT);
         generic_select_query_and_respond(database_name, query, &res, &conn,
                                          &response, &response_len);
       } else {
