@@ -116,6 +116,24 @@ char *regex_iterator_get_match(struct regex_iterator *iter, int match_num) {
   return output;
 }
 
+size_t regex_iterator_write_match(struct regex_iterator *iter, int match_num,
+                                  char *buffer, size_t buffer_size) {
+  if (!(0 <= match_num && match_num < iter->nmatch))
+    return 0;
+
+  int output_len =
+      iter->matches[match_num].rm_eo - iter->matches[match_num].rm_so;
+  if (output_len >= buffer_size) {
+    memcpy(buffer, iter->cur + iter->matches[match_num].rm_so, buffer_size);
+    buffer[buffer_size - 1] = '\0';
+    return buffer_size;
+  } else {
+    memcpy(buffer, iter->cur + iter->matches[match_num].rm_so, output_len);
+    buffer[output_len] = '\0';
+    return output_len + 1;
+  }
+}
+
 /**
  * Frees all pointers associated with a given regex iterator. Does not free the
  * target. Also frees the pointer to the iterator itself.
