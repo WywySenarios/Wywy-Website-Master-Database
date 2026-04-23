@@ -625,7 +625,6 @@ void *handle_client(void *arg) {
       char key[64];
       char value[64];
       char filter_value[64];
-      char filter_table_name[64];
       while (regex_iterator_match(querystring_regex, 0) == 0) {
         regex_iterator_write_match(querystring_regex, 1, key, 64);
         regex_iterator_write_match(querystring_regex, 2, value, 64);
@@ -664,16 +663,12 @@ void *handle_client(void *arg) {
         } else if (strcmp(key, "parent_id") == 0) {
           switch (table_type) {
           case TAG_ALIASES_TABLE:;
-            int n = strlen(table_name);
-            memcpy(filter_table_name, table_name, n);
-            memcpy(filter_table_name + n, "_tag_names", strlen("_tag_names"));
-            *(filter_table_name + n + strlen("_tag_names")) = '\0';
-            options.filter_table_name = filter_table_name;
-            options.filter_column_name = "id";
+            options.filter_table_name = table_name;
+            options.filter_column_name = "tag_id";
             break;
           case TAGS_TABLE:
             options.filter_table_name = table_name;
-            options.filter_column_name = "id";
+            options.filter_column_name = "entry_id";
             break;
           case DESCRIPTORS_TABLE:
             options.filter_table_name = table_name;
