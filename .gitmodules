@@ -1,9 +1,9 @@
 [submodule "apps/create_tables"]
 	path = apps/create_tables
 	url = https://github.com/WywySenarios/Wywy-Website-Create-Tables
-[submodule "apps/tests/types"]
-	path = apps/tests/Wywy_Website_Types
+[submodule "apps/tests/generic_database_api"]
+	path = apps/tests/generic_database_api
+	url = https://github.com/WywySenarios/Wywy-Website-Database-Testing
+[submodule "apps/tests/wywy_website_types"]
+	path = apps/tests/wywy_website_types
 	url = https://github.com/WywySenarios/Wywy-Website-Python-Types
-[submodule "apps/tests/testing_helpers"]
-	path = apps/tests/testing_helpers
-	url = https://github.com/WywySenarios/Wywy-Website-Testing-Helpers

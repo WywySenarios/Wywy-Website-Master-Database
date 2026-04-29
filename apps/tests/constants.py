@@ -1,16 +1,32 @@
 from os import environ
-from typing import Literal
-from Wywy_Website_Types import Datatype, PostgresDatatype
+from typing import Literal, Any
+from wywy_website_types import Datatype, PostgresDatatype
+from string import Template
 
 SQL_RECEPTIONIST_URL = f"http://{environ["SQL_RECEPTIONIST_HOST"]}:2523"
 SQL_RECEPTIONIST_ADMIN_USERNAME = "admin"
 f = open("/run/secrets/admin", "r")
 SQL_RECEPTIONIST_PASSWORD = f.read()
 f.close()
-SQL_RECEPTIONIST_AUTH_COOKIES = {
+AUTH_COOKIES: dict[str, str] = {
     "username": "admin",
     "password": SQL_RECEPTIONIST_PASSWORD,
 }
+GENERIC_REQUEST_PARAMS: dict[str, Any] = {
+    "headers": {"Origin": environ["MAIN_URL"]},
+    "cookies": AUTH_COOKIES,
+}
+
+DATA_ENDPOINT: Template = Template(
+    SQL_RECEPTIONIST_URL + "/${database_name}/${table_name}/data"
+)
+DESCRIPTOR_ENDPOINT: Template = Template(
+    SQL_RECEPTIONIST_URL
+    + "/${database_name}/${table_name}/descriptors/${descriptor_name}"
+)
+TAG_ENDPOINT: Template = Template(
+    SQL_RECEPTIONIST_URL + "/${database_name}/${table_name}/${table_type}"
+)
 
 # Constants
 RESERVED_DATABASE_NAMES = ["info"]

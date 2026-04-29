@@ -22,6 +22,8 @@ const char *get_status_code_name(int status_code) {
     return "No Content";
   case 400:
     return "Bad Request";
+  case 401:
+    return "Unauthorized";
   case 403:
     return "Forbidden";
   case 404:

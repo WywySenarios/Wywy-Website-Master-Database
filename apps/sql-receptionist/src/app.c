@@ -187,10 +187,6 @@ void *handle_client(void *arg) {
   // receive request data from client and store into buffer
   ssize_t bytes_received = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
 
-  if (getenv("SQL_RECEPTIONIST_LOG_REQUESTS") &&
-      strcmp(getenv("SQL_RECEPTIONIST_LOG_REQUESTS"), "TRUE") == 0)
-    log_debug_printf("%s\n", buffer);
-
   if (bytes_received <= 0) {
     build_response(400, &response, &response_len, "No request data received.");
     goto end;
@@ -200,6 +196,10 @@ void *handle_client(void *arg) {
   char *body = strstr(buffer, "\r\n\r\n");
   if (body)
     body += 4;
+
+  if (getenv("SQL_RECEPTIONIST_LOG_REQUESTS") &&
+      strcmp(getenv("SQL_RECEPTIONIST_LOG_REQUESTS"), "TRUE") == 0)
+    log_debug_printf("%s\n", buffer);
 
   // @warning HTTP/1 not matching?
   // ^([A-Z]+) /([^ ]*) HTTP/[12]\\.[0-9]
@@ -363,7 +363,7 @@ void *handle_client(void *arg) {
   if (regexec(&raw_cookie_regex, buffer, 1 + 1, raw_cookie_matches, 0) ==
       REG_NOMATCH) {
     regfree(&raw_cookie_regex);
-    build_response(403, &response, &response_len,
+    build_response(401, &response, &response_len,
                    "Authentication failed. No username or password provided.");
     goto end;
   }
@@ -479,19 +479,22 @@ void *handle_client(void *arg) {
     // check if the database & table may be accessed freely
     if (table->read) {
       // try to access the database and query
-
-      // @todo allow-list input validation
-      // @todo still vulnerable to changing the config
-
-      if (!url_segments[2]) {
-        goto regular_table;
-      }
+      char computed_table_name[64]; // Identifier max length is 63 or 64
+      struct select_options options = {
+          table_name, "id", NULL, table->schema, table->schema_count,  1, 0,
+          1,          NULL, NULL, NULL,          SELECT_DEFAULT_LIMIT, 0};
+      enum table_type table_type = MAIN_TABLE;
 
       /*
        * Special endpoints:
        * tag_names & tag_aliases are restricted to SELECT * FROM ...;
        */
-      if (strcmp(url_segments[2], "tag_names") == 0) {
+      if (!url_segments[2] || strcmp(url_segments[2], "data") == 0) {
+        // table_type = MAIN_TABLE;
+        if (table->tagging)
+          options.primary_tag = 1;
+      } else if (strcmp(url_segments[2], "tags") == 0) {
+        table_type = TAGS_TABLE;
         // check if tagging is enabled
         if (!table->tagging) {
           build_response_printf(400, &response, &response_len,
@@ -501,13 +504,36 @@ void *handle_client(void *arg) {
           goto end;
         }
 
-        size_t query_len =
-            strlen("SELECT * FROM _tag_names;") + strlen(table_name);
-        query = malloc(query_len + 1);
-        snprintf(query, query_len, "SELECT * FROM %s_tag_names;", table_name);
-        generic_select_query_and_respond(database_name, query, &res, &conn,
-                                         &response, &response_len);
+        memcpy(computed_table_name, table_name, strlen(table_name));
+        memcpy(computed_table_name + strlen(table_name), "_tags",
+               strlen("_tags"));
+        *(computed_table_name + strlen(table_name) + strlen("_tags")) = '\0';
+
+        options.table_name = computed_table_name;
+        options.schema = tags_schema;
+        options.schema_count = tags_schema_count;
+      } else if (strcmp(url_segments[2], "tag_names") == 0) {
+        table_type = TAG_NAMES_TABLE;
+        // check if tagging is enabled
+        if (!table->tagging) {
+          build_response_printf(400, &response, &response_len,
+                                strlen("Tagging is not enabled on table \"\""),
+                                "Tagging is not enabled on table \"%s\"",
+                                table_name);
+          goto end;
+        }
+
+        memcpy(computed_table_name, table_name, strlen(table_name));
+        memcpy(computed_table_name + strlen(table_name), "_tag_names",
+               strlen("_tag_names"));
+        *(computed_table_name + strlen(table_name) + strlen("_tag_names")) =
+            '\0';
+
+        options.table_name = computed_table_name;
+        options.schema = tag_names_schema;
+        options.schema_count = tag_names_schema_count;
       } else if (strcmp(url_segments[2], "tag_aliases") == 0) {
+        table_type = TAG_ALIASES_TABLE;
         // check if tagging is enabled
         if (!table->tagging) {
           build_response_printf(400, &response, &response_len,
@@ -517,18 +543,63 @@ void *handle_client(void *arg) {
           goto end;
         }
 
-        size_t query_len =
-            strlen("SELECT * FROM _tag_aliases;") + strlen(table_name);
-        query = malloc(query_len + 1);
-        snprintf(query, query_len, "SELECT * FROM %s_tag_aliases;", table_name);
-        generic_select_query_and_respond(database_name, query, &res, &conn,
-                                         &response, &response_len);
-        goto end;
+        memcpy(computed_table_name, table_name, strlen(table_name));
+        memcpy(computed_table_name + strlen(table_name), "_tag_aliases",
+               strlen("_tag_aliases"));
+        *(computed_table_name + strlen(table_name) + strlen("_tag_aliases")) =
+            '\0';
+
+        options.table_name = computed_table_name;
+        options.schema = tag_aliases_schema;
+        options.schema_count = tag_aliases_schema_count;
+        options.order_by_column = "alias";
+        options.id_column = 0;
+      } else if (strcmp(url_segments[2], "descriptors") == 0) {
+        table_type = DESCRIPTORS_TABLE;
+        if (!url_segments[3]) {
+          build_response_printf(400, &response, &response_len,
+                                strlen("Descriptor name not provided."),
+                                "Descriptor name not provided.");
+          goto end;
+        }
+
+        int descriptor_schema_found = 0; // innocent until proven guilty
+        char *computed_table_name_cur = computed_table_name;
+        int n;
+
+        // search for the relevant descriptor
+        for (int i = 0; i < table->descriptors_count; i++) {
+          if (strcmp(table->descriptors[i].name, url_segments[3]) == 0) {
+            options.schema = table->descriptors[i].schema;
+            options.schema_count = table->descriptors[i].schema_count;
+            n = strlen(table_name);
+            memcpy(computed_table_name_cur, table_name, n);
+            computed_table_name_cur += n;
+            *computed_table_name_cur++ = '_';
+            n = strlen(table->descriptors[i].name);
+            memcpy(computed_table_name_cur, table->descriptors[i].name, n);
+            computed_table_name_cur += n;
+            memcpy(computed_table_name_cur, "_descriptors",
+                   strlen("_descriptors"));
+            *(computed_table_name_cur + strlen("_descriptors")) = '\0';
+            descriptor_schema_found = 1;
+            break;
+          }
+        }
+
+        if (!descriptor_schema_found) {
+          build_response_printf(400, &response, &response_len,
+                                strlen("Descriptor not found."),
+                                "Descriptor not found.");
+          goto end;
+        }
+
+        options.table_name = computed_table_name;
       } else {
-        build_response(400, &response, &response_len, "Bad URL.");
-      }
-      goto end;
-    regular_table: // @todo catch tags & tag_groups
+        build_response(400, &response, &response_len,
+                       "Unknown or unsupported table URL.");
+        goto end;
+      } // @TODO tag groups
       // REQUIRES querystring to run
       if (querystring == NULL) {
         build_response(400, &response, &response_len,
@@ -548,64 +619,93 @@ void *handle_client(void *arg) {
       }
       regex_iterator_load_target(querystring_regex, querystring);
 
-      // many of these need to be non-null:
-      struct select_options options = {table_name,
-                                       "id",
-                                       NULL,
-                                       table->schema,
-                                       table->schema_count,
-                                       1,
-                                       table->tagging ? 1 : 0,
-                                       1,
-                                       SELECT_DEFAULT_LIMIT,
-                                       0};
-
       // read every querystring value
       // store every single valid key-value pair.
-      char *key = NULL;
-      char *value = NULL;
-      int valid = 0;
+      // maximum length of 64 characters
+      char key[64];
+      char value[64];
+      char filter_value[64];
       while (regex_iterator_match(querystring_regex, 0) == 0) {
-        key = regex_iterator_get_match(querystring_regex, 1);
-        value = regex_iterator_get_match(querystring_regex, 2);
-        valid = 0;
+        regex_iterator_write_match(querystring_regex, 1, key, 64);
+        regex_iterator_write_match(querystring_regex, 2, value, 64);
 
         // what type is it?
         if (strcmp(key, "SELECT") == 0) { // legacy code compatability
-          valid = 1;
         } else if (strcmp(key, "ORDER_BY") == 0) {
           if (strcmp(value, "ASC") == 0) {
             options.order_by_order = "ASC";
-            valid = 1;
           } else if (strcmp(value, "DESC") == 0) {
             options.order_by_order = "DESC";
-            valid = 1;
+          } else {
+            build_response(400, &response, &response_len,
+                           "Invalid ORDER_BY value. Expected ASC or DESC.");
+            goto end;
+          }
+        } else if (strcmp(key, "id") == 0) {
+          // the query string value should be an integer.
+          switch (regex_check("^[0-9]+$", 1, REG_EXTENDED, 0, value)) {
+          case 1:
+            options.filter_column_name = "id";
+            memcpy(filter_value, value, 64);
+            options.filter_value = filter_value;
+            break;
+          case 0:
+            build_response(400, &response, &response_len,
+                           "Invalid ID to filter by. Expected an integer.");
+            goto end;
+          default:
+            log_critical("Regcomp failed on querystring ID.\n");
+            build_response(
+                400, &response, &response_len,
+                "Something went wrong while trying to parse the querystring.");
+            goto end;
+          }
+        } else if (strcmp(key, "parent_id") == 0) {
+          switch (table_type) {
+          case TAG_ALIASES_TABLE:;
+            options.filter_table_name = table_name;
+            options.filter_column_name = "tag_id";
+            break;
+          case TAGS_TABLE:
+            options.filter_table_name = table_name;
+            options.filter_column_name = "entry_id";
+            break;
+          case DESCRIPTORS_TABLE:
+            options.filter_table_name = table_name;
+            options.filter_column_name = "id";
+            break;
+          default:
+            build_response(
+                400, &response, &response_len,
+                "This table type does not support selection by parent id.");
+            goto end;
+          }
+
+          switch (regex_check("^[0-9]+$", 1, REG_EXTENDED, 0, value)) {
+          case 1:
+            memcpy(filter_value, value, 64);
+            options.filter_value = filter_value;
+            break;
+          case 0:
+            build_response(
+                400, &response, &response_len,
+                "Invalid parent ID to filter by. Expected an integer.");
+            goto end;
+          default:
+            log_critical("Regcomp failed on querystring parent ID.\n");
+            build_response(
+                400, &response, &response_len,
+                "Something went wrong while trying to parse the querystring.");
+            goto end;
           }
         } else {
           build_response_printf(400, &response, &response_len,
                                 strlen("Invalid querystring key: \"\".") +
                                     strlen(key),
                                 "Invalid querystring key: \"%s\".", key);
-          free(key);
-          free(value);
           goto end;
         }
 
-        if (!valid) {
-          build_response_printf(400, &response, &response_len,
-                                strlen("Key value pair \"\", \"\" is "
-                                       "invalid.") +
-                                    strlen(key) + strlen(value),
-                                "Key value pair \"%s\", "
-                                "\"%s\" is invalid.",
-                                key, value);
-          free(key);
-          free(value);
-          goto end;
-        }
-
-        free(key);
-        free(value);
         regex_iterator_advance_cur(querystring_regex);
       }
 
@@ -613,12 +713,13 @@ void *handle_client(void *arg) {
       // an order to sort it by.
       if (options.order_by_order && options.limit) {
         char query[QUERY_SIZE_LIMIT];
+        construct_select_query(&options, query, QUERY_SIZE_LIMIT);
         if (errno) {
           perror("Data table SELECT query construction");
           build_response(500, &response, &response_len,
                          "Server-side SELECT query construction failure.");
+          goto end;
         }
-        construct_select_query(&options, query, QUERY_SIZE_LIMIT);
         generic_select_query_and_respond(database_name, query, &res, &conn,
                                          &response, &response_len);
       } else {
@@ -665,7 +766,7 @@ void *handle_client(void *arg) {
         goto schema_mismatch_end;
       }
 
-      struct insert_options options = {table_name, NULL, -1, 0, "id", "id"};
+      struct insert_options options = {table_name, NULL, -1, 0, "id", 0, "id"};
       if (strcmp(target_type, "data") == 0) {
         // no additional checks needed
         options.schema = table->schema;
@@ -684,6 +785,12 @@ void *handle_client(void *arg) {
 
         char *descriptor_name = url_segments[3];
 
+        if (!descriptor_name) {
+          build_response(400, &response, &response_len,
+                         "No descriptor was provided.");
+          goto schema_mismatch_end;
+        }
+
         // look for the respective descriptor
         for (int i = 0; i < table->descriptors_count; i++) {
           if (str_cci_cmp(table->descriptors[i].name, descriptor_name) == 0) {
@@ -701,7 +808,7 @@ void *handle_client(void *arg) {
 
         // update target table name
         int old_table_name_len = strlen(table_name);
-        url_segments[1] = table_name =
+        options.table_name = url_segments[1] = table_name =
             realloc(table_name, old_table_name_len + strlen(descriptor_name) +
                                     strlen("__descriptors") + 1);
         snprintf(table_name + old_table_name_len,
@@ -747,6 +854,7 @@ void *handle_client(void *arg) {
         options.schema_count = tag_aliases_schema_count;
 
         options.primary_column_name = "alias";
+        options.primary_column_in_schema = 1;
         options.duplicate_column_name = "alias";
 
         // update target table name
@@ -957,6 +1065,13 @@ int main(int argc, char const *argv[]) {
         log_info_printf("       + Write: %s\n",
                         global_config->dbs[i].tables[j].write ? "true"
                                                               : "false");
+
+        // transform all descriptor names into lower snake case
+        for (unsigned int k = 0;
+             k < global_config->dbs[i].tables[j].descriptors_count; k++) {
+          to_lower_snake_case(
+              global_config->dbs[i].tables[j].descriptors[k].name);
+        }
       }
     }
   }

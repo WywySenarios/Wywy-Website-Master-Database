@@ -6,6 +6,7 @@
 #define CUR_LIB
 #include "utils/cur.h"
 #endif
+#include "logging.h"
 #include "postgres.h"
 #include "postgres/insert.h"
 #include "postgres/schema.h"
@@ -19,29 +20,34 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define MAX_INSERT_QUERY_SIZE 65536
+#define MAX_INSERT_QUERY_SIZE 8192
+#define MAX_PLACEHOLDER_SIZE 65536
 #define MAX_COLUMN_NAME_SIZE 100
+#define MAX_COLUMNS 64
 #define LARGEST_COLUMN_NAME_SUFFIX strlen("_altitude_accuracy")
 
 // does NOT validate datatypes
-#define write_and_access_column(column_name)                                   \
+// @TODO do not automatically advance cur?
+#define write_and_access_column(cur, remaining_size, cur_checkpoint,           \
+                                column_name)                                   \
   ({                                                                           \
-    current_column_name = cur;                                                 \
-    cur_write_column_name(column_name);                                        \
-    current_item = json_object_getn(entry, current_column_name,                \
-                                    cur - current_column_name);                \
-    cur_append(',');                                                           \
+    cur_checkpoint = cur;                                                      \
+    cur_write_column_name(cur, remaining_size, column_name);                   \
+    current_item =                                                             \
+        json_object_getn(entry, cur_checkpoint, cur - cur_checkpoint);         \
+    cur_append(cur, remaining_size, ',');                                      \
   })
-#define write_and_access_child_column_name(column_name, column_suffix)         \
+#define write_and_access_child_column_name(                                    \
+    cur, remaining_size, cur_checkpoint, column_name, column_suffix)           \
   ({                                                                           \
-    current_column_name = cur;                                                 \
-    cur_write_column_name(column_name);                                        \
-    cur_memcpy(column_suffix);                                                 \
-    current_item = json_object_getn(entry, current_column_name,                \
-                                    cur - current_column_name);                \
-    cur_append(',');                                                           \
+    cur_checkpoint = cur;                                                      \
+    cur_write_column_name(cur, remaining_size, column_name);                   \
+    cur_memcpy(cur, remaining_size, column_suffix);                            \
+    current_item =                                                             \
+        json_object_getn(entry, cur_checkpoint, cur - cur_checkpoint);         \
+    cur_append(cur, remaining_size, ',');                                      \
   })
-#define cur_write_json_value(value)                                            \
+#define cur_write_json_value(cur, remaining_size, value)                       \
   ({                                                                           \
     n = write_json_value(value, cur, remaining_size);                          \
     if (remaining_size <= n) {                                                 \
@@ -52,20 +58,17 @@
     cur += n;                                                                  \
   })
 
-#define write_next_json_value()                                                \
-  ({                                                                           \
-    temp_cur = current_column_name;                                            \
-    while (*temp_cur != ',' && *temp_cur != ')')                               \
-      temp_cur++;                                                              \
-    current_item = json_object_getn(entry, current_column_name,                \
-                                    temp_cur - current_column_name);           \
-    current_column_name = temp_cur + 1;                                        \
-    if (current_item) {                                                        \
-      cur_write_json_value(current_item);                                      \
-      cur_append(',');                                                         \
-    } else                                                                     \
-      cur_memcpy("NULL,");                                                     \
-  })
+#define write_placeholder_value()                                              \
+  do {                                                                         \
+    if (current_item != NULL && !json_is_null(current_item)) {                 \
+      placeholder_ptrs[columns_consumed++] = placeholder_cur;                  \
+      cur_write_json_value(placeholder_cur, placeholder_remaining_size,        \
+                           current_item);                                      \
+      cur_append(placeholder_cur, placeholder_remaining_size, '\0');           \
+    } else {                                                                   \
+      placeholder_ptrs[columns_consumed++] = NULL;                             \
+    }                                                                          \
+  } while (0)
 
 int validate_and_insert_into(struct insert_options *options, json_t *entry,
                              PGresult **res, PGconn *conn, char *error_buffer) {
@@ -74,52 +77,81 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   const char *key = NULL;
   const json_t *value = NULL;
   char query[MAX_INSERT_QUERY_SIZE];
+  char placeholders[MAX_PLACEHOLDER_SIZE];
+  const char *placeholder_ptrs[MAX_COLUMNS];
   char *current_column_name = NULL;
-  char *cur = query;
-  char *column_names = NULL;
-  size_t remaining_size = MAX_INSERT_QUERY_SIZE;
+  char *query_cur = query;
+  char *placeholder_cur = placeholders;
+  size_t query_remaining_size = MAX_INSERT_QUERY_SIZE;
+  size_t placeholder_remaining_size = MAX_PLACEHOLDER_SIZE;
   size_t n;
+  int primary_column_present = 0;
   *error_buffer = '\0';
 
   // write in the beginning of the query
   // we can guarentee this fits into the query buffer because it's the first
   // text to be inserted and is a known constant.
-  n = snprintf(cur, remaining_size, "INSERT INTO %s (", options->table_name);
+  n = snprintf(query_cur, query_remaining_size, "INSERT INTO %s (",
+               options->table_name);
   if (errno) {
     goto end;
   }
-  if (remaining_size < n) {
+  if (query_remaining_size < n) {
     errno = ENOMEM;
     goto end;
   }
-  remaining_size -= n;
-  cur += n;
+  query_remaining_size -= n;
+  query_cur += n;
 
   // check for conformance & write in column names
   size_t columns_consumed = 0;
   json_t *current_item = NULL;
-  column_names = cur;
+  char *query_cur_checkpoint = query_cur;
+  // check for UPSERT id column
+  if (!options->primary_column_in_schema) {
+    write_and_access_column(query_cur, query_remaining_size,
+                            query_cur_checkpoint, options->primary_column_name);
+    if (current_item) {
+      if (!json_is_integer(current_item)) {
+        memcpy(
+            error_buffer,
+            "Datatype datatype: the primary column should be an integer.",
+            strlen(
+                "Datatype mismatch: the primary column should be an integer.") +
+                1);
+        return 0;
+      }
+      write_placeholder_value();
+      primary_column_present = 1;
+    } else {
+      revert_cur_checkpoint(query_cur, query_remaining_size,
+                            query_cur_checkpoint);
+    }
+  }
+
   // check for primary_tag
   if (options->primary_tag) {
-    write_and_access_column("primary_tag");
+    write_and_access_column(query_cur, query_remaining_size,
+                            query_cur_checkpoint, "primary_tag");
 
     if (!current_item) {
       memcpy(error_buffer, "Missing column \"primary tag\".",
-             strlen("Missing \"primary tag\".") + 1);
+             strlen("Missing column \"primary tag\".") + 1);
       return 0;
     }
     if (!json_is_integer(current_item)) {
       memcpy(
-          error_buffer, "Datatype datatype: primary_tag should be an integer.",
+          error_buffer, "Datatype mismatch: primary_tag should be an integer.",
           strlen("Datatype mismatch: primary_tag should be an integer.") + 1);
       return 0;
     }
-    columns_consumed++;
+    write_placeholder_value();
   }
 
   for (int i = 0; i < options->schema_count; i++) {
     // @TODO add optionality
-    write_and_access_column(options->schema[i].name);
+    write_and_access_column(query_cur, query_remaining_size,
+                            query_cur_checkpoint, options->schema[i].name);
     if (!current_item) {
       snprintf(error_buffer, ERROR_BUFFER_SIZE, "Missing column \"%s\".",
                options->schema[i].name);
@@ -131,14 +163,14 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
                options->schema[i].name, options->schema[i].datatype);
       return 0;
     }
-    columns_consumed++;
+    write_placeholder_value();
 
     // enforce geodetic point child columns
     if (strcmp(options->schema[i].datatype, "geodetic point") == 0) {
-      write_and_access_child_column_name(options->schema[i].name,
-                                         "_latlong_accuracy");
+      write_and_access_child_column_name(
+          query_cur, query_remaining_size, query_cur_checkpoint,
+          options->schema[i].name, "_latlong_accuracy");
       if (current_item) {
-        columns_consumed++;
         if (!validate_column(current_item, options->schema[i],
                              LATLONG_ACCURACY)) {
           snprintf(
@@ -148,10 +180,15 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
               options->schema[i].name);
           return 0;
         }
+        write_placeholder_value();
+      } else {
+        revert_cur_checkpoint(query_cur, query_remaining_size,
+                              query_cur_checkpoint);
       }
-      write_and_access_child_column_name(options->schema[i].name, "_altitude");
+      write_and_access_child_column_name(query_cur, query_remaining_size,
+                                         query_cur_checkpoint,
+                                         options->schema[i].name, "_altitude");
       if (current_item) {
-        columns_consumed++;
         if (!validate_column(current_item, options->schema[i], ALTITUDE)) {
           snprintf(
               error_buffer, ERROR_BUFFER_SIZE,
@@ -160,11 +197,15 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
               options->schema[i].name);
           return 0;
         }
+        write_placeholder_value();
+      } else {
+        revert_cur_checkpoint(query_cur, query_remaining_size,
+                              query_cur_checkpoint);
       }
-      write_and_access_child_column_name(options->schema[i].name,
-                                         "_altitude_accuracy");
+      write_and_access_child_column_name(
+          query_cur, query_remaining_size, query_cur_checkpoint,
+          options->schema[i].name, "_altitude_accuracy");
       if (current_item) {
-        columns_consumed++;
         if (!validate_column(current_item, options->schema[i],
                              ALTITUDE_ACCURACY)) {
           snprintf(error_buffer, ERROR_BUFFER_SIZE,
@@ -174,21 +215,20 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
                    options->schema[i].name);
           return 0;
         }
+        write_placeholder_value();
+      } else {
+        revert_cur_checkpoint(query_cur, query_remaining_size,
+                              query_cur_checkpoint);
       }
     }
 
     // enforce columns (optional)
     if (options->schema[i].comments) {
-
-      current_column_name = cur;
-      cur_write_column_name(options->schema[i].name);
-      cur_memcpy("_comments");
-
-      current_item = json_object_getn(entry, current_column_name,
-                                      cur - current_column_name);
+      write_and_access_child_column_name(query_cur, query_remaining_size,
+                                         query_cur_checkpoint,
+                                         options->schema[i].name, "_comments");
 
       if (current_item) {
-        columns_consumed++;
         if (!validate_column(current_item, options->schema[i], COMMENTS)) {
           snprintf(error_buffer, ERROR_BUFFER_SIZE,
                    "Datatype mismatch: comments sub-column of \"%s\" should be "
@@ -196,12 +236,10 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
                    options->schema[i].name);
           return 0;
         }
-        cur_append(',');
+        write_placeholder_value();
       } else {
-        // pull back cur
-        n = strlen(options->schema[i].name) + strlen("_comments");
-        remaining_size += n;
-        cur -= n;
+        revert_cur_checkpoint(query_cur, query_remaining_size,
+                              query_cur_checkpoint);
       }
     }
   }
@@ -217,49 +255,113 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
   // it might be optimizeable by using a dynamic memory pool
 
   // remove trailing comma & add ") VALUES ("
-  cur--;
-  remaining_size++;
-  cur_memcpy(") VALUES (");
+  cur_shave(query_cur, query_remaining_size, 1);
+  cur_memcpy(query_cur, query_remaining_size, ") VALUES (");
 
-  current_column_name = column_names;
-  char *temp_cur = NULL;
-  // build VALUES
-  if (options->primary_tag) {
-    write_next_json_value();
+  // write in all the placeholders
+  for (int i = 1; i < 10 && i <= columns_consumed; i++) {
+    cur_append(query_cur, query_remaining_size, '$');
+    cur_append(query_cur, query_remaining_size, '0' + i);
+    cur_append(query_cur, query_remaining_size, ',');
+  }
+  // assume that the maximum number of columns consumed is 64 (i can take a
+  // maximum value of 65) i.e. assume the table schema has a valid number of
+  // columns.
+  for (int i = 10; i <= columns_consumed; i++) {
+    cur_append(query_cur, query_remaining_size, '$');
+    cur_append(query_cur, query_remaining_size, '0' + i / 10);
+    cur_append(query_cur, query_remaining_size, '0' + i % 10);
+    cur_append(query_cur, query_remaining_size, ',');
   }
 
+  // remove trailing comma
+  cur_shave(query_cur, query_remaining_size, 1);
+
+  cur_memcpy(query_cur, query_remaining_size, ") ON CONFLICT (");
+  cur_write_column_name(query_cur, query_remaining_size,
+                        options->duplicate_column_name);
+  cur_memcpy(query_cur, query_remaining_size, ") DO UPDATE SET ");
+
+  // upsert (update all columns on conflict)
+  // ignore primary column.
+  // for the tag aliases table, the primary column is also a part of the schema.
+  // otherwise, the ID column is the conflicting column (i.e. it does not need
+  // to be updated). this is fragile design and should be fixed when the need
+  // arises. I think this will go unfixed for a very long time.
+  if (primary_column_present) {
+    cur_write_column_name(query_cur, query_remaining_size,
+                          options->primary_column_name);
+    cur_memcpy(query_cur, query_remaining_size, " = EXCLUDED.");
+    cur_write_column_name(query_cur, query_remaining_size,
+                          options->primary_column_name);
+    cur_append(query_cur, query_remaining_size, ',');
+  }
+
+  // primary tag
+  if (options->primary_tag) {
+    cur_memcpy(query_cur, query_remaining_size,
+               "primary_tag = EXCLUDED.primary_tag,");
+  }
+
+  // handle the bulk data
   for (int i = 0; i < options->schema_count; i++) {
-    write_next_json_value();
+    cur_write_column_name(query_cur, query_remaining_size,
+                          options->schema[i].name);
+    cur_memcpy(query_cur, query_remaining_size, " = EXCLUDED.");
+    cur_write_column_name(query_cur, query_remaining_size,
+                          options->schema[i].name);
+    cur_append(query_cur, query_remaining_size, ',');
 
     if (strcmp(options->schema[i].datatype, "geodetic point") == 0) {
-      write_next_json_value(); // latlong_accuracy
-      write_next_json_value(); // altitude
-      write_next_json_value(); // altitude_accuracy
+      cur_write_column_name(query_cur, query_remaining_size,
+                            options->schema[i].name);
+      cur_memcpy(query_cur, query_remaining_size,
+                 "_latlong_accuracy = EXCLUDED.");
+      cur_write_column_name(query_cur, query_remaining_size,
+                            options->schema[i].name);
+      cur_memcpy(query_cur, query_remaining_size, "_latlong_accuracy,");
+      cur_write_column_name(query_cur, query_remaining_size,
+                            options->schema[i].name);
+      cur_memcpy(query_cur, query_remaining_size, "_altitude = EXCLUDED.");
+      cur_write_column_name(query_cur, query_remaining_size,
+                            options->schema[i].name);
+      cur_memcpy(query_cur, query_remaining_size, "_altitude,");
+      cur_write_column_name(query_cur, query_remaining_size,
+                            options->schema[i].name);
+      cur_memcpy(query_cur, query_remaining_size,
+                 "_altitude_accuracy = EXCLUDED.");
+      cur_write_column_name(query_cur, query_remaining_size,
+                            options->schema[i].name);
+      cur_memcpy(query_cur, query_remaining_size, "_altitude_accuracy,");
+    }
+
+    if (options->schema[i].comments) {
+      cur_write_column_name(query_cur, query_remaining_size,
+                            options->schema[i].name);
+      cur_memcpy(query_cur, query_remaining_size, "_comments = EXCLUDED.");
+      cur_write_column_name(query_cur, query_remaining_size,
+                            options->schema[i].name);
+      cur_memcpy(query_cur, query_remaining_size, "_comments,");
     }
   }
 
   // remove trailing comma
-  cur--;
-  remaining_size++;
+  cur_shave(query_cur, query_remaining_size, 1);
 
-  n = snprintf(
-      cur, remaining_size,
-      ") ON CONFLICT (%s) DO UPDATE SET %s = EXCLUDED.%s RETURNING %s;",
-      options->duplicate_column_name, options->duplicate_column_name,
-      options->duplicate_column_name, options->primary_column_name);
-  if (errno) {
-    goto end;
-  }
-  if (remaining_size <= n) {
-    errno = ENOMEM;
-    goto end;
-  }
-  cur += n;
-  remaining_size -= n;
-  *cur = '\0';
+  cur_memcpy(query_cur, query_remaining_size, " RETURNING ");
+  cur_write_column_name(query_cur, query_remaining_size,
+                        options->primary_column_name);
+  cur_append(query_cur, query_remaining_size, ';');
+  cur_append(query_cur, query_remaining_size, '\0');
 
   // query database
-  sql_query(query, res, conn);
+  if (getenv("SQL_RECEPTIONIST_LOG_QUERIES") &&
+      strcmp(getenv("SQL_RECEPTIONIST_LOG_QUERIES"), "TRUE") == 0)
+    log_debug_printf("INSERT query: %s\n", query);
+
+  // Submit & Execute query
+  *res = PQexecParams(conn, query, columns_consumed, NULL, placeholder_ptrs,
+                      NULL, NULL, 0);
   status = 1;
 
 end:
