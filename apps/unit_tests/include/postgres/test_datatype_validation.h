@@ -1,0 +1,1 @@
+extern void test_check_st_point();
