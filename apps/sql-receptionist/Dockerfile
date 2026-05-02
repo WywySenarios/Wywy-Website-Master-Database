@@ -69,3 +69,15 @@ RUN make clean
 RUN make
 
 USER sql-receptionist
+
+FROM builder AS unit_test
+
+RUN apt-get install -y \
+    valgrind \
+    gdb \
+    nano
+
+COPY --chown=sql-receptionist:Wywy-Website /apps/sql-receptionist /home/sql-receptionist
+COPY --chown=sql-receptionist:Wywy-Website /apps/unit_tests /home/sql-receptionist
+
+USER sql-receptionist
