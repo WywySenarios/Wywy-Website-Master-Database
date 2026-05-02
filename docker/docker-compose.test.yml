@@ -28,6 +28,46 @@ services:
       sql_receptionist:
         condition: service_started
 
+  unit_test:
+    tty: true
+    build:
+      context: ../
+      dockerfile: apps/sql-receptionist/Dockerfile
+      target: unit_test
+      args:
+        LIBCYAML_VARIANT: debug
+        USER_ID: ${USER_ID}
+    env_file:
+      - path: ${UNIVERSAL_CONFIG_DIR}/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/.env.dev
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env.dev
+        required: true
+    secrets:
+      - admin
+    volumes:
+      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
+      - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/master-database
+    # develop:
+    #   watch:
+    #     - action: sync+restart
+    #       path: ./../apps/sql-receptionist
+    #       target: /home/sql-receptionist
+    #       initial_sync: true
+    #     - action: sync+restart
+    #       path: ./../apps/unit_tests
+    #       target: /home/sql-receptionist
+    #       initial_sync: true
+    #     - action: restart
+    #       path: ${UNIVERSAL_CONFIG_DIR}/config.yml
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: bash -c "make clean && make && exec valgrind --leak-check=yes --show-leak-kinds=definite ./app"
+
   # @TODO secrets for db authentication
   postgres:
     restart: no
