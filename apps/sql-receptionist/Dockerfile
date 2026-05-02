@@ -51,7 +51,6 @@ WORKDIR /home/sql-receptionist
 EXPOSE 2523
 
 FROM builder AS dev
-WORKDIR /home/sql-receptionist
 
 RUN apt-get install -y \
     valgrind \
@@ -63,7 +62,6 @@ COPY --chown=sql-receptionist:Wywy-Website /apps/sql-receptionist /home/sql-rece
 USER sql-receptionist
 
 FROM builder AS prod
-WORKDIR /home/sql-receptionist
 
 COPY --chown=sql-receptionist:Wywy-Website /apps/sql-receptionist /home/sql-receptionist
 
