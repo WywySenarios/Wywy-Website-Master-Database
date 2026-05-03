@@ -8,7 +8,7 @@
 #include <libpq-fe.h>
 #include <string.h>
 
-int test_session_creation() {
+int test_session() {
   char token[RANDOM_STRING_LENGTH + 1 + RANDOM_STRING_LENGTH + 1];
 
   PGconn *conn = connect_db("info");
@@ -18,6 +18,12 @@ int test_session_creation() {
     return 0;
   }
 
+  assert_false(
+      validate_session(
+          "admin", "xxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxx", conn),
+      "An invalid token was deemed valid by validate_session.");
+
+  // START - integration test: valid session creation
   // ensure that the session creation function runs to completion
   int session_OK = create_session("admin", token, conn) == 1;
   assert_true(session_OK, "Session creation did not run to completion.");
@@ -65,9 +71,13 @@ int test_session_creation() {
   assert_true(
       strcmp(secret_hash_hex1, secret_hash_hex2) == 0,
       "The database secret has does not match with the client secret hash.");
+  PQclear(res);
+
+  // test validation
+  assert_true(validate_session("admin", token, conn),
+              "A valid session was not deemed valid by validate_session.");
 
   PQfinish(conn);
-  PQclear(res);
 
   return 1;
 }

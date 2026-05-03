@@ -5,7 +5,7 @@
 int main() {
   // Auth
   test_generate_secure_random_string();
-  test_session_creation();
+  test_session();
 
   // test_check_st_point();
 
