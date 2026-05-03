@@ -1,5 +1,6 @@
 #include "auth/hash.h"
 #include "auth/rng.h"
+#include "auth/string.h"
 #include "postgres.h"
 #include <libpq-fe.h>
 #include <openssl/evp.h>
@@ -36,4 +37,41 @@ int create_session(char *username, char *token, PGconn *conn) {
   PQclear(res);
 
   return success;
+}
+
+int validate_token(char *token, char *username, PGconn *conn) {
+  const char *const param_values[1] = {token};
+  PGresult *res = PQexecParams(
+      conn,
+      "SELECT sessions.secret_hash, users.username WHERE sessions.id = $1 "
+      "INNER JOIN users ON users.id=sessions.user_id",
+      1, NULL, param_values, NULL, NULL, 0);
+
+  if (!res)
+    return 0;
+
+  if (PQnfields(res) == 0) {
+    PQclear(res);
+    return 0;
+  }
+
+  char secret_hash_hex1[64];
+  char secret_hash_hex2[64];
+  sha_256_hex(token + RANDOM_STRING_LENGTH + 1, RANDOM_STRING_LENGTH,
+              secret_hash_hex1);
+  memcpy(secret_hash_hex2, PQgetvalue(res, 0, 0), 64);
+
+  if (!constant_time_string_equality(secret_hash_hex1, secret_hash_hex2, 64)) {
+    PQclear(res);
+    return 0;
+  }
+
+  const char *username_raw = PQgetvalue(res, 0, 1);
+  size_t n = strlen(username_raw);
+
+  memcpy(username, username_raw, n);
+  username[n] = '\0';
+
+  PQclear(res);
+  return 1;
 }

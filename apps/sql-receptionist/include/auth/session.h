@@ -10,3 +10,12 @@
  * database INSERTion.
  */
 extern int create_session(char *username, char *token, PGconn *conn);
+
+/**
+ * Validates a token and accesses the related username if the token is valid.
+ * @param username The username output buffer.
+ * @param token The token to validate.
+ * @param conn A database connection to use when validating the token.
+ * @returns Whether or not the token is valid.
+ */
+extern int validate_session(char *username, char *token, PGconn *conn);
