@@ -44,7 +44,9 @@ RUN make install VARIANT=${LIBCYAML_VARIANT}
 
 RUN apt-get update && apt-get install -y \
     libpq-dev \
-    libyaml-dev
+    libyaml-dev \
+    openssl \
+    libargon2-dev
 
 WORKDIR /home/sql-receptionist
 
