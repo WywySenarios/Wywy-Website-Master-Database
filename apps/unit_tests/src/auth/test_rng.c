@@ -6,7 +6,7 @@
 int test_generate_secure_random_string() {
   char string[RANDOM_STRING_LENGTH];
 
-  generateSecureRandomString(string);
+  generate_secure_random_string(string);
 
   // assume that the function has succeeded if there are no null characters.
   for (int i = 0; i < RANDOM_STRING_LENGTH; i++) {

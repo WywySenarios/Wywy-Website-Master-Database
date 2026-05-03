@@ -5,4 +5,4 @@
  * length RANDOM_STRING_LENGTH that is not null terminated.
  * @param dest The destination to write the random string to.
  */
-extern int generateSecureRandomString(char *dest);
+extern int generate_secure_random_string(char *dest);

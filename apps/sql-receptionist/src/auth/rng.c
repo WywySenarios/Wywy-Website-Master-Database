@@ -8,7 +8,7 @@ static const char randomStringAlphabet[32] = {
     'm', 'n', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x',
     'y', 'z', '2', '3', '4', '5', '6', '7', '8', '9'};
 
-int generateSecureRandomString(char *dest) {
+int generate_secure_random_string(char *dest) {
   FILE *f = fopen("/dev/urandom", "rb");
   if (!f)
     return 0;
