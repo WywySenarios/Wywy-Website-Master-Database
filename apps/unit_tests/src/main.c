@@ -1,6 +1,7 @@
 #include "auth/test_rng.h"
 #include "auth/test_session.h"
 #include "postgres/test_datatype_validation.h"
+#include <stdio.h>
 
 int main() {
   // Auth
@@ -9,5 +10,6 @@ int main() {
 
   // test_check_st_point();
 
+  puts("Testing complete.");
   return 0;
 }
