@@ -39,7 +39,7 @@ int create_session(char *username, char *token, PGconn *conn) {
   return success;
 }
 
-int validate_token(char *token, char *username, PGconn *conn) {
+int validate_token(char *username, char *token, PGconn *conn) {
   const char *const param_values[1] = {token};
   PGresult *res = PQexecParams(
       conn,

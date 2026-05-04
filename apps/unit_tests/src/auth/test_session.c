@@ -19,8 +19,8 @@ int test_session() {
   }
 
   assert_false(
-      validate_session(
-          "admin", "xxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxx", conn),
+      validate_token("admin",
+                     "xxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxx", conn),
       "An invalid token was deemed valid by validate_session.");
 
   // START - integration test: valid session creation
@@ -74,7 +74,7 @@ int test_session() {
   PQclear(res);
 
   // test validation
-  assert_true(validate_session("admin", token, conn),
+  assert_true(validate_token("admin", token, conn),
               "A valid session was not deemed valid by validate_session.");
 
   PQfinish(conn);
