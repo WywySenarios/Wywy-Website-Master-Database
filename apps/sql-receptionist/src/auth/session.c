@@ -51,7 +51,7 @@ int validate_token(char *username, char *token, PGconn *conn) {
   if (!res)
     return 0;
 
-  if (PQnfields(res) == 0) {
+  if (PQntuples(res) == 0) {
     PQclear(res);
     return 0;
   }
