@@ -9,7 +9,9 @@
 #include <string.h>
 
 int test_session() {
+  // @TODO fix pass/fail
   char token[RANDOM_STRING_LENGTH + 1 + RANDOM_STRING_LENGTH + 1];
+  char username[65];
 
   PGconn *conn = connect_db("info");
   if (errno) {
@@ -22,6 +24,26 @@ int test_session() {
       validate_token("admin",
                      "xxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxx", conn),
       "An invalid token was deemed valid by validate_session.");
+
+  char fail_user_password_hash[ARGON2_PHC_SIZE];
+  const char *fail_user_param_values[1] = {fail_user_password_hash};
+  argon2id_phc("password", 1, fail_user_password_hash);
+
+  PGresult *res =
+      PQexecParams(conn,
+                   "INSERT INTO users (username, password_hash, access_level, "
+                   "tokens_remaining) VALUES ('bad_session_user', $1, 0, 0)",
+                   1, NULL, fail_user_param_values, NULL, NULL, 0);
+  if (res && PQresultStatus(res) == PGRES_COMMAND_OK) {
+    assert_false(
+        create_session("bad_session_user", token, conn),
+        "F: An invalid session (empty token bucket) creation succeeded.");
+  } else {
+    puts("F: Valid user INSERT failed ((username, password_hash, access_level, "
+         "tokens_remaining) VALUES ('bad_session_user', [password_hash], 0, "
+         "-10000)).");
+  }
+  PQclear(res);
 
   // START - integration test: valid session creation
   // ensure that the session creation function runs to completion
@@ -46,9 +68,8 @@ int test_session() {
   const char *query_placeholders[1] = {token};
   token[RANDOM_STRING_LENGTH] =
       '\0'; // allow libpq to do its thing with string lengths
-  PGresult *res =
-      PQexecParams(conn, "SELECT (secret_hash) FROM sessions WHERE id=$1", 1,
-                   NULL, query_placeholders, NULL, NULL, 0);
+  res = PQexecParams(conn, "SELECT (secret_hash) FROM sessions WHERE id=$1", 1,
+                     NULL, query_placeholders, NULL, NULL, 0);
   if (PQresultStatus(res) != PGRES_TUPLES_OK || PQntuples(res) != 1) {
     puts("create_session's related database record could not be found.");
     PQfinish(conn);

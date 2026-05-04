@@ -22,13 +22,14 @@ int create_session(char *username, char *token, PGconn *conn) {
   // hash the secret
   sha_256_hex(secret, RANDOM_STRING_LENGTH, secret_hash_hex);
   secret_hash_hex[64] = '\0';
-
-  PGresult *res =
-      PQexecParams(conn,
-                   "INSERT INTO sessions (id, user_id, secret_hash) VALUES($1, "
-                   "(SELECT id FROM users where USERNAME = $2), $3)",
-                   3, NULL, (const char *[]){token, username, secret_hash_hex},
-                   NULL, NULL, 0);
+  PGresult *res = PQexecParams(
+      conn,
+      "WITH relevant_user AS (UPDATE users SET tokens_remaining = LEAST(1000, "
+      "tokens_remaining + EXTRACT(EPOCH FROM (now() - last_seen)) - 1), "
+      "last_seen = NOW() WHERE username=$1 RETURNING id) INSERT INTO sessions "
+      "(id, user_id, secret_hash) SELECT $2, id, $3 FROM relevant_user",
+      3, NULL, (const char *[]){username, token, secret_hash_hex}, NULL, NULL,
+      0);
 
   // fix token string
   token[RANDOM_STRING_LENGTH] = '.';
