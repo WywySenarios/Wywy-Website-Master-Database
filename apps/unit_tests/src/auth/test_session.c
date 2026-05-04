@@ -21,7 +21,7 @@ int test_session() {
   }
 
   assert_false(
-      validate_token("admin",
+      validate_token(username,
                      "xxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxx", conn),
       "An invalid token was deemed valid by validate_session.");
 
@@ -95,8 +95,11 @@ int test_session() {
   PQclear(res);
 
   // test validation
-  assert_true(validate_token("admin", token, conn),
+  assert_true(validate_token(username, token, conn),
               "A valid session was not deemed valid by validate_session.");
+  assert_true(strcmp(username, "admin") == 0,
+              "validate_token did not return the same username that the token "
+              "was created for.");
 
   PQfinish(conn);
 
