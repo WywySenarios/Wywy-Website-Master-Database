@@ -41,11 +41,12 @@ int create_session(char *username, char *token, PGconn *conn) {
 
 int validate_token(char *username, char *token, PGconn *conn) {
   const char *const param_values[1] = {token};
-  PGresult *res = PQexecParams(
-      conn,
-      "SELECT sessions.secret_hash, users.username WHERE sessions.id = $1 "
-      "INNER JOIN users ON users.id=sessions.user_id",
-      1, NULL, param_values, NULL, NULL, 0);
+  PGresult *res =
+      PQexecParams(conn,
+                   "SELECT sessions.secret_hash, users.username "
+                   "FROM sessions INNER JOIN users ON "
+                   "users.id=sessions.user_id WHERE sessions.id = $1",
+                   1, NULL, param_values, NULL, NULL, 0);
 
   if (!res)
     return 0;
