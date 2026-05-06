@@ -45,6 +45,10 @@ int test_session() {
   }
   PQclear(res);
 
+  assert_false(
+      create_session("not_admin", token, conn),
+      "F: Session creation erroneously succeded for a non-existent user.");
+
   // START - integration test: valid session creation
   // ensure that the session creation function runs to completion
   int session_OK = create_session("admin", token, conn) == 1;
