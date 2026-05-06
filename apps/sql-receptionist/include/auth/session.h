@@ -1,7 +1,10 @@
+#include "auth/rng.h"
 #include <libpq-fe.h>
 
+#define TOKEN_LENGTH RANDOM_STRING_LENGTH + 1 + RANDOM_STRING_LENGTH
+
 /**
- * Creates a RANDOM_STRING_LENGTH + 1 + RANDOM_STRING_LENGTH + 1 size token.
+ * Creates a TOKEN_LENGTH + 1 size token.
  * Also handles database INSERTION.
  * @param username A null terminated username for the related user.
  * @param token The token output buffer.

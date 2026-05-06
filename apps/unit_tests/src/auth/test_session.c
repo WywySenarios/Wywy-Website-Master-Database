@@ -10,7 +10,7 @@
 
 int test_session() {
   // @TODO fix pass/fail
-  char token[RANDOM_STRING_LENGTH + 1 + RANDOM_STRING_LENGTH + 1];
+  char token[TOKEN_LENGTH + 1];
   char username[65];
 
   PGconn *conn = connect_db("info");
@@ -60,7 +60,7 @@ int test_session() {
   }
 
   // ensure that the token has valid text
-  for (int i = 0; i < RANDOM_STRING_LENGTH + 1 + RANDOM_STRING_LENGTH; i++) {
+  for (int i = 0; i < TOKEN_LENGTH; i++) {
     if (token[i] == '\0') {
       puts("\"Successful\" session creation did not produce a valid token.");
       PQfinish(conn);
