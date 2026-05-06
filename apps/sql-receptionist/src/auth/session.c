@@ -34,7 +34,8 @@ int create_session(char *username, char *token, PGconn *conn) {
   // fix token string
   token[RANDOM_STRING_LENGTH] = '.';
 
-  int success = res != NULL && PQresultStatus(res) == PGRES_COMMAND_OK;
+  int success = res != NULL && PQresultStatus(res) == PGRES_COMMAND_OK &&
+                strcmp(PQcmdTuples(res), "0") != 0;
   PQclear(res);
 
   return success;
