@@ -75,10 +75,8 @@ TEST_CASE(handle_login_valid_login) {
     return 0;
   }
 
-  size_t body_len = strlen("{\"username\":\"admin\",\"password\":\"\"}") +
-                    strlen(admin_password);
-  char *body = malloc(body_len + 1);
-  snprintf(body, body_len, "{\"username\":\"admin\",\"password\":\"%s\"}",
+  char body[36 + 256 + 1];
+  snprintf(body, 36 + 256, "{\"username\":\"admin\",\"password\":\"%s\"}",
            admin_password);
   if (errno)
     return 0;
