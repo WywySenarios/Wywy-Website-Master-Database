@@ -18,15 +18,15 @@ int test_creds() {
 
   pass &= assert_false(check_creds("notadmin", admin_password, conn),
                        "F: An invalid credential (wrogn username)");
-  pass &=
-      assert_true(check_creds("admin", admin_password, conn),
-                  "F: A valid credential did not pass credential validation.");
+  pass &= assert_true(
+      check_creds("admin", admin_password, conn),
+      "F: A valid credential did not pass credential validation.\n");
 
   // assume the admin password is not empty. That would be really stupid.
   admin_password[0] = '\0';
   pass &= assert_false(check_creds("admin", admin_password, conn),
                        "F: An invalid credential (wrong password) passed "
-                       "credential validation.");
+                       "credential validation.\n");
 
   return pass;
 }

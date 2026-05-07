@@ -16,15 +16,15 @@ TEST_SUITE(login) {
 
   if (!assert_true(
           assert_file_readable(admin_password, 257, "/run/secrets/admin", "r"),
-          "F: Admin password not available."))
+          "F: Admin password not available.\n"))
     return 0;
 
   if (!assert_true(assert_database_connection(&conn, "info"),
-                   "F: Database connection failed."))
+                   "E: Database connection failed.\n"))
     return 0;
 
   assert_true(login(token, "admin", admin_password, conn),
-              "F: login with valid credentials failed.");
+              "F: login with valid credentials failed.\n");
   if (*admin_password == '\0') {
     admin_password[0] = 'a';
     admin_password[1] = '\0';
@@ -71,7 +71,7 @@ TEST_CASE(handle_login_valid_login) {
 
   if (!assert_true(
           assert_file_readable(admin_password, 257, "/run/secrets/admin", "r"),
-          "E: Admin password not available.")) {
+          "E: Admin password not available.\n")) {
     return 0;
   }
 

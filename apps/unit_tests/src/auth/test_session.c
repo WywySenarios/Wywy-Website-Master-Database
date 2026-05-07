@@ -52,7 +52,7 @@ int test_session() {
   // START - integration test: valid session creation
   // ensure that the session creation function runs to completion
   int session_OK = create_session("admin", token, conn) == 1;
-  assert_true(session_OK, "Session creation did not run to completion.");
+  assert_true(session_OK, "F: Session creation did not run to completion.\n");
 
   if (!session_OK) {
     PQfinish(conn);
@@ -62,7 +62,7 @@ int test_session() {
   // ensure that the token has valid text
   for (int i = 0; i < TOKEN_LENGTH; i++) {
     if (token[i] == '\0') {
-      puts("\"Successful\" session creation did not produce a valid token.");
+      puts("F: \"Successful\" session creation did not produce a valid token.");
       PQfinish(conn);
       return 0;
     }
@@ -93,17 +93,18 @@ int test_session() {
   sha_256_hex(token + RANDOM_STRING_LENGTH + 1, RANDOM_STRING_LENGTH,
               secret_hash_hex2);
 
-  assert_true(
-      strcmp(secret_hash_hex1, secret_hash_hex2) == 0,
-      "The database secret has does not match with the client secret hash.");
+  assert_true(strcmp(secret_hash_hex1, secret_hash_hex2) == 0,
+              "F: The database secret has does not match with the client "
+              "secret hash.\n");
   PQclear(res);
 
   // test validation
   assert_true(validate_token(username, token, conn),
               "A valid session was not deemed valid by validate_session.");
-  assert_true(strcmp(username, "admin") == 0,
-              "validate_token did not return the same username that the token "
-              "was created for.");
+  assert_true(
+      strcmp(username, "admin") == 0,
+      "F: validate_token did not return the same username that the token "
+      "was created for.\n");
 
   PQfinish(conn);
 
