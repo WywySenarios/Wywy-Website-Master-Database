@@ -8,11 +8,15 @@
 
 int test_creds() {
   PGconn *conn = NULL;
-  if (!assert_database_connection(&conn, "info"))
+  if (!assert_database_connection(&conn, "info")) {
+    PQfinish(conn);
     return 0;
+  }
   char admin_password[257];
-  if (!assert_file_readable(admin_password, 257, "/run/secrets/admin", "r"))
+  if (!assert_file_readable(admin_password, 257, "/run/secrets/admin", "r")) {
+    PQfinish(conn);
     return 0;
+  }
 
   int pass = 1;
 
@@ -28,5 +32,6 @@ int test_creds() {
                        "F: An invalid credential (wrong password) passed "
                        "credential validation.\n");
 
+  PQfinish(conn);
   return pass;
 }

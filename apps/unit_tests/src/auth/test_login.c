@@ -16,12 +16,16 @@ TEST_SUITE(login) {
 
   if (!assert_true(
           assert_file_readable(admin_password, 257, "/run/secrets/admin", "r"),
-          "F: Admin password not available.\n"))
+          "F: Admin password not available.\n")) {
+    PQfinish(conn);
     return 0;
+  }
 
   if (!assert_true(assert_database_connection(&conn, "info"),
-                   "E: Database connection failed.\n"))
+                   "E: Database connection failed.\n")) {
+    PQfinish(conn);
     return 0;
+  }
 
   assert_true(login(token, "admin", admin_password, conn),
               "F: login with valid credentials failed.\n");
@@ -34,6 +38,7 @@ TEST_SUITE(login) {
   assert_false(login(token, "admin", admin_password, conn),
                "F: login with invalid credentials succeeded.");
 
+  PQfinish(conn);
   return pass;
 }
 
