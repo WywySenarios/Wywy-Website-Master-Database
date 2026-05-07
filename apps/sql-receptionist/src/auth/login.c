@@ -58,6 +58,7 @@ void handle_login(char **response, size_t *response_len, const char *body) {
     perror("login");
     build_response(500, response, response_len, "",
                    "An error occurred while attempting to authenticate.");
+    PQfinish(conn);
     return;
   }
 
@@ -70,5 +71,6 @@ void handle_login(char **response, size_t *response_len, const char *body) {
     build_response(403, response, response_len, "", "Invalid credentials.");
   }
 
+  PQfinish(conn);
   json_decref(entry);
 }
