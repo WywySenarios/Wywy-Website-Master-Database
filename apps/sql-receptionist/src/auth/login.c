@@ -31,17 +31,21 @@ void handle_login(char **response, size_t *response_len, const char *body) {
 
   if (!username_entry) {
     build_response(400, response, response_len, "", "Missing username.");
+    json_decref(entry);
     return;
   } else if (!password_entry) {
     build_response(400, response, response_len, "", "Missing password.");
+    json_decref(entry);
     return;
   } else if (!json_is_string(username_entry)) {
     build_response(400, response, response_len, "",
                    "The username should be a string.");
+    json_decref(entry);
     return;
   } else if (!json_is_string(password_entry)) {
     build_response(400, response, response_len, "",
                    "The password should be a string.");
+    json_decref(entry);
   }
 
   const char *username = json_string_value(username_entry);
