@@ -35,3 +35,28 @@ extern int assert_database_connection(PGconn **conn, const char *database_name);
  */
 extern int assert_file_readable(char *buffer, size_t n, const char *filepath,
                                 const char *mode);
+
+extern inline int assert_response_status(char *response, int status,
+                                         const char *message) {
+  if (!response)
+    return 0;
+  // HTTP/1.1 xxx
+  if (response[11] != status % 10) {
+    puts(message);
+    return 0;
+  }
+  status /= 10;
+  if (response[10] != status % 10) {
+    puts(message);
+    return 0;
+  }
+  status /= 10;
+  if (response[9] != status % 10) {
+    puts(message);
+    return 0;
+  }
+  return 1;
+}
+
+extern int assert_response_body(char *response, const char *body,
+                                const char *message);
