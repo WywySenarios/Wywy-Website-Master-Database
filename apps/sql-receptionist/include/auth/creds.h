@@ -10,4 +10,5 @@
  * + 1
  * @param conn
  */
-extern int check_creds(char *username, char *password, PGconn *conn);
+extern int check_creds(const char *username, const char *password,
+                       PGconn *conn);

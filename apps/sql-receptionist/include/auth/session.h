@@ -12,7 +12,7 @@
  * @returns Pass/fail. A success is defined as a successful token creation and
  * database INSERTion.
  */
-extern int create_session(char *username, char *token, PGconn *conn);
+extern int create_session(const char *username, char *token, PGconn *conn);
 
 /**
  * Validates a token and accesses the related username if the token is valid.

@@ -7,7 +7,7 @@
 #include <string.h>
 #include <time.h>
 
-int create_session(char *username, char *token, PGconn *conn) {
+int create_session(const char *username, char *token, PGconn *conn) {
   time_t now = time(NULL);
 
   token[RANDOM_STRING_LENGTH] = '\0'; // temporarily null terminate for libpq

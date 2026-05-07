@@ -4,7 +4,7 @@
 #include <libpq-fe.h>
 #include <string.h>
 
-int check_creds(char *username, char *password, PGconn *conn) {
+int check_creds(const char *username, const char *password, PGconn *conn) {
   char phc_string[ARGON2_PHC_SIZE];
 
   PGresult *res =
