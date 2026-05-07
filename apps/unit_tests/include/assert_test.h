@@ -36,7 +36,7 @@ extern int assert_database_connection(PGconn **conn, const char *database_name);
 extern int assert_file_readable(char *buffer, size_t n, const char *filepath,
                                 const char *mode);
 
-extern inline int assert_response_status(char *response, int status,
+static inline int assert_response_status(char *response, int status,
                                          const char *message) {
   if (!response)
     return 0;
