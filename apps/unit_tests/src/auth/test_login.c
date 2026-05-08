@@ -66,14 +66,16 @@ TEST_CASE(handle_login_missing_password){assert_handle_login(
     "{\"username\":\"admin\"}", 400,
     "F: Invalid login (missing password) did not return status 400.",
     "Missing password.",
-    "F: Invalid login (missing password) did not have the correct response "
+    "F: Invalid login (missing password) response body was not \"Missing "
+    "password.\"."
     "body.")}
 
 TEST_CASE(handle_login_missing_username){assert_handle_login(
     "{\"password\":\"xx\"}", 400,
     "F: Invalid login (missing username) did not return status 400.",
     "Missing username.",
-    "F: Invalid login (missing username) did not have the correct response "
+    "F: Invalid login (missing username) response body was not \"Missing "
+    "username.\"."
     "body.")}
 
 TEST_CASE(handle_login_valid_login) {
