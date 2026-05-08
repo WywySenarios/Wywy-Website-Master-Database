@@ -51,7 +51,7 @@ void handle_login(char **response, size_t *response_len, const char *body) {
   const char *username = json_string_value(username_entry);
   const char *password = json_string_value(password_entry);
   // strlen("Set-Cookie: session=...; HttpOnly; Path=/")
-  char cookie[39 + TOKEN_LENGTH + 1];
+  char cookie[39 + TOKEN_LENGTH + 2 + 1];
 
   PGconn *conn = connect_db("info");
   if (errno) {
@@ -64,8 +64,8 @@ void handle_login(char **response, size_t *response_len, const char *body) {
 
   if (login(cookie + 20, username, password, conn)) {
     memcpy(cookie, "Set-Cookie: session=", strlen("Set-Cookie: session="));
-    memcpy(cookie + 20 + TOKEN_LENGTH, "; HttpOnly; Path=/", 19);
-    cookie[39 + TOKEN_LENGTH] = '\0';
+    memcpy(cookie + 20 + TOKEN_LENGTH, "; HttpOnly; Path=/\r\n", 21);
+    cookie[39 + TOKEN_LENGTH + 2] = '\0';
     build_response(200, response, response_len, cookie, "Login succeeded!");
   } else {
     build_response(403, response, response_len, "", "Invalid credentials.");
