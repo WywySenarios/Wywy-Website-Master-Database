@@ -99,8 +99,9 @@ int test_session() {
   PQclear(res);
 
   // test validation
+  username[0] = '\0';
   assert_true(validate_token(username, token, conn),
-              "A valid session was not deemed valid by validate_session.");
+              "A valid session was not deemed valid by validate_session.\n");
   assert_true(
       strcmp(username, "admin") == 0,
       "F: validate_token did not return the same username that the token "
