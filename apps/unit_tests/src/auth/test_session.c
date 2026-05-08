@@ -89,11 +89,11 @@ int test_session() {
     return 0;
   }
 
-  char secret_hash_hex2[32];
+  char secret_hash_hex2[65];
   sha_256_hex(token + RANDOM_STRING_LENGTH + 1, RANDOM_STRING_LENGTH,
               secret_hash_hex2);
 
-  assert_true(strcmp(secret_hash_hex1, secret_hash_hex2) == 0,
+  assert_true(strncmp(secret_hash_hex1, secret_hash_hex2, 64) == 0,
               "F: The database secret has does not match with the client "
               "secret hash.\n");
   PQclear(res);

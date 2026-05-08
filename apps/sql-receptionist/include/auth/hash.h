@@ -19,7 +19,7 @@ argon2id_phc(const void *input, const size_t input_len, char *phc_out);
  * Is guarenteed to succeed.
  * @param input The input to hash.
  * @param input_len The length of the input to hash in bytes.
- * @param hash_hex The output buffer with a minimize size of 32 bytes.
+ * @param hash_hex The output buffer with a minimize size of 65 bytes.
  */
 extern void sha_256_hex(const void *input, const size_t input_len,
                         char *hash_hex);
