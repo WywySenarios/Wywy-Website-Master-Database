@@ -9,7 +9,7 @@ int check_creds(const char *username, const char *password, PGconn *conn) {
 
   PGresult *res =
       PQexecParams(conn, "SELECT password_hash FROM users WHERE username=$1", 1,
-                   NULL, (const char **){}, NULL, NULL, 0);
+                   NULL, &username, NULL, NULL, 0);
   if (!res || PQresultStatus(res) != PGRES_TUPLES_OK || PQntuples(res) == 0) {
     PQclear(res);
     return 0;
