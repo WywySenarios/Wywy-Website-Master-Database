@@ -64,12 +64,13 @@ int assert_response_body(char *response, const char *body,
   regmatch_t matches[2];
 
   if (regexec(&regex, response, 2, matches, 0) == REG_NOMATCH ||
-      matches[1].rm_eo == -1) {
+      matches[1].rm_so == -1 ||
+      strcmp(response + matches[1].rm_so, body) != 0) {
     puts(message);
     regfree(&regex);
     return 0;
   } else {
     regfree(&regex);
-    return strcmp(response + matches[1].rm_eo, body) == 0;
+    return 1;
   }
 }
