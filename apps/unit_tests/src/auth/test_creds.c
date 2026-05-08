@@ -21,7 +21,7 @@ int test_creds() {
   int pass = 1;
 
   pass &= assert_false(check_creds("notadmin", admin_password, conn),
-                       "F: An invalid credential (wrogn username)");
+                       "F: An invalid credential (wrong username)");
   pass &= assert_true(
       check_creds("admin", admin_password, conn),
       "F: A valid credential did not pass credential validation.\n");
