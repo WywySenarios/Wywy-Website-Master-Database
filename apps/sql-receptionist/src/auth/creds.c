@@ -14,8 +14,8 @@ int check_creds(const char *username, const char *password, PGconn *conn) {
     PQclear(res);
     return 0;
   }
-  memcpy(phc_string, PQgetvalue(res, 0, 0), 64);
-  phc_string[64] = '\0';
+  memcpy(phc_string, PQgetvalue(res, 0, 0), ARGON2_PHC_SIZE - 1);
+  phc_string[ARGON2_PHC_SIZE - 1] = '\0';
   PQclear(res);
 
   return argon2id_verify(phc_string, password, strlen(password)) == ARGON2_OK;
