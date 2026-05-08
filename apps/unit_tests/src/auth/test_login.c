@@ -55,7 +55,12 @@ TEST_SUITE(login) {
   free(response);                                                              \
   return pass;
 
-TEST_CASE(handle_login_empty_body){assert_handle_login("", 100, "", "", "")}
+TEST_CASE(handle_login_empty_body){
+    assert_handle_login("", 400,
+                        "Invalid login (empty body) did not return status 400.",
+                        "Failed to parse body JSON.",
+                        "Invalid login (empty body) response body was not "
+                        "\"Failed to parse body JSON.\".")}
 
 TEST_CASE(handle_login_missing_password){assert_handle_login(
     "{\"username\":\"admin\"}", 400,
