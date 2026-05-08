@@ -8,7 +8,7 @@
 #define ARGON2_HASH_LEN 32u   /* raw digest bytes (256-bit)   */
 #define ARGON2_SALT_LEN 16u   /* salt bytes                   */
 
-enum Argon2_ErrorCodes argon2id_phc(void *input, size_t input_len,
+enum Argon2_ErrorCodes argon2id_phc(const void *input, const size_t input_len,
                                     char *phc_out) {
   if (!input || !phc_out)
     return ARGON2_INCORRECT_PARAMETER;
@@ -26,7 +26,7 @@ enum Argon2_ErrorCodes argon2id_phc(void *input, size_t input_len,
                                ARGON2_HASH_LEN, phc_out, ARGON2_PHC_SIZE);
 }
 
-void sha_256_hex(void *input, size_t input_len, char *hash_hex) {
+void sha_256_hex(const void *input, const size_t input_len, char *hash_hex) {
   unsigned char secretHash[EVP_MAX_MD_SIZE];
   unsigned int secretHashLength;
   EVP_MD_CTX *ctx = EVP_MD_CTX_new();

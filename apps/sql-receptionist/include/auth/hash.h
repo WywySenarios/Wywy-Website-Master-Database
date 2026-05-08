@@ -11,8 +11,8 @@
  * ARGON2_PHC_SIZE.
  * @returns The resulting Argon2 exit code.
  */
-extern enum Argon2_ErrorCodes argon2id_phc(void *input, size_t input_len,
-                                           char *phc_out);
+extern enum Argon2_ErrorCodes
+argon2id_phc(const void *input, const size_t input_len, char *phc_out);
 
 /**
  * Hashes an input with SHA-256 and outputs a hex string.
@@ -21,4 +21,5 @@ extern enum Argon2_ErrorCodes argon2id_phc(void *input, size_t input_len,
  * @param input_len The length of the input to hash in bytes.
  * @param hash_hex The output buffer with a minimize size of 32 bytes.
  */
-extern void sha_256_hex(void *input, size_t input_len, char *hash_hex);
+extern void sha_256_hex(const void *input, const size_t input_len,
+                        char *hash_hex);
