@@ -41,17 +41,17 @@ static inline int assert_response_status(char *response, int status,
   if (!response)
     return 0;
   // HTTP/1.1 xxx
-  if (response[11] != status % 10) {
+  if (response[11] != ('0' + status % 10)) {
     puts(message);
     return 0;
   }
   status /= 10;
-  if (response[10] != status % 10) {
+  if (response[10] != ('0' + status % 10)) {
     puts(message);
     return 0;
   }
   status /= 10;
-  if (response[9] != status % 10) {
+  if (response[9] != ('0' + status % 10)) {
     puts(message);
     return 0;
   }
