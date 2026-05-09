@@ -12,6 +12,9 @@ int test_session() {
   // @TODO fix pass/fail
   char token[TOKEN_LENGTH + 1];
   char username[65];
+  const char *token_placeholders[1] = {token};
+  const int token_placeholders_formats[1] = {1};
+  const int token_placeholders_lengths[1] = {RANDOM_STRING_LENGTH};
 
   PGconn *conn = connect_db("info");
   if (errno) {
@@ -69,11 +72,9 @@ int test_session() {
   }
 
   // ensure that the related database record exists
-  const char *query_placeholders[1] = {token};
-  token[RANDOM_STRING_LENGTH] =
-      '\0'; // allow libpq to do its thing with string lengths
   res = PQexecParams(conn, "SELECT (secret_hash) FROM sessions WHERE id=$1", 1,
-                     NULL, query_placeholders, NULL, NULL, 0);
+                     NULL, token_placeholders, token_placeholders_lengths,
+                     token_placeholders_formats, 0);
   if (PQresultStatus(res) != PGRES_TUPLES_OK || PQntuples(res) != 1) {
     puts("create_session's related database record could not be found.");
     PQclear(res);
@@ -108,6 +109,20 @@ int test_session() {
       strcmp(username, "admin") == 0,
       "F: validate_token did not return the same username that the token "
       "was created for.\n");
+
+  // test session expiry
+  res = PQexecParams(conn,
+                     "UPDATE sessions SET last_seen=NOW() - INTERVAL '1000 "
+                     "hours' WHERE id=$1",
+                     1, NULL, token_placeholders, token_placeholders_lengths,
+                     token_placeholders_formats, 0);
+  if (res && PQresultStatus(res) == PGRES_COMMAND_OK) {
+    assert_false(validate_token(username, token, conn),
+                 "F: An invalid (expired) token passed validation\n");
+  } else {
+    puts("E: Failed to set token token expiry for expired token test.");
+  }
+  PQclear(res);
 
   PQfinish(conn);
 
