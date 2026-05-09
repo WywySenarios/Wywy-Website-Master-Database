@@ -4,6 +4,7 @@
 #include "postgres.h"
 #include <libpq-fe.h>
 #include <openssl/evp.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -41,25 +42,34 @@ int create_session(const char *username, char *token, PGconn *conn) {
   return success;
 }
 
-int validate_token(char *username, char *token, PGconn *conn) {
-  const char *const param_values[1] = {token};
+int validate_token(char *username, const char *token, PGconn *conn) {
+  static const int param_formats[1] = {1};
+  static const int param_lengths[1] = {RANDOM_STRING_LENGTH};
   PGresult *res =
       PQexecParams(conn,
-                   "SELECT sessions.secret_hash, users.username "
-                   "FROM sessions INNER JOIN users ON "
-                   "users.id=sessions.user_id WHERE sessions.id = $1",
-                   1, NULL, param_values, NULL, NULL, 0);
+                   "SELECT sessions.secret_hash, users.username, "
+                   "FLOOR(EXTRACT(EPOCH FROM (NOW() - "
+                   "sessions.last_seen))/60/60)::INT FROM sessions "
+                   "INNER JOIN users ON "
+                   "users.id=sessions.user_id WHERE sessions.id=$1",
+                   1, NULL, &token, param_lengths, param_formats, 0);
 
-  if (!res)
-    return 0;
-
-  if (PQntuples(res) == 0) {
+  if (!res || PQntuples(res) == 0) {
     PQclear(res);
     return 0;
   }
 
-  char secret_hash_hex1[64];
+  // check age first
+  const char *age =
+      PQgetvalue(res, 0, 2); // I could definitely use strtol, but I feel lazy
+  if (strlen(age) >= 4) {    // expires after 1000 hours, or ~41.6 days
+    PQclear(res);
+    return 0;
+  }
+
+  char secret_hash_hex1[65];
   char secret_hash_hex2[64];
+
   sha_256_hex(token + RANDOM_STRING_LENGTH + 1, RANDOM_STRING_LENGTH,
               secret_hash_hex1);
   memcpy(secret_hash_hex2, PQgetvalue(res, 0, 0), 64);
@@ -75,6 +85,32 @@ int validate_token(char *username, char *token, PGconn *conn) {
   memcpy(username, username_raw, n);
   username[n] = '\0';
 
+  PGresult *last_seen_res = NULL;
+  if (strlen(age) > 1) {
+    // update last seen after 1 hour
+    // it's OK for this to fail and run the next time
+    puts(token);
+    last_seen_res = PQexecParams(
+        conn,
+        "UPDATE users SET last_seen=NOW() - "
+        "INTERVAL '2000 hours' FROM "
+        "sessions WHERE sessions.id=$1 AND users.id=sessions.user_id",
+        1, NULL, &token, param_lengths, param_formats, 0);
+    if (!last_seen_res || PQresultStatus(last_seen_res) != PGRES_COMMAND_OK) {
+      goto validate_token_end;
+    }
+    PQclear(last_seen_res);
+    last_seen_res = PQexecParams(
+        conn,
+        "UPDATE sessions SET last_seen=NOW() - INTERVAL '2000 hours' WHERE "
+        "id=$1",
+        1, NULL, &token, param_lengths, param_formats, 0);
+    if (!last_seen_res || PQresultStatus(last_seen_res) != PGRES_COMMAND_OK) {
+      goto validate_token_end;
+    }
+  }
+validate_token_end:
+  PQclear(last_seen_res);
   PQclear(res);
   return 1;
 }

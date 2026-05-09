@@ -21,4 +21,4 @@ extern int create_session(const char *username, char *token, PGconn *conn);
  * @param conn A database connection to use when validating the token.
  * @returns Whether or not the token is valid.
  */
-extern int validate_token(char *username, char *token, PGconn *conn);
+extern int validate_token(char *username, const char *token, PGconn *conn);
