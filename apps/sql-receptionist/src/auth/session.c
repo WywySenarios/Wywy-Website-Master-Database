@@ -90,21 +90,18 @@ int validate_token(char *username, const char *token, PGconn *conn) {
     // update last seen after 1 hour
     // it's OK for this to fail and run the next time
     puts(token);
-    last_seen_res = PQexecParams(
-        conn,
-        "UPDATE users SET last_seen=NOW() - "
-        "INTERVAL '2000 hours' FROM "
-        "sessions WHERE sessions.id=$1 AND users.id=sessions.user_id",
-        1, NULL, &token, param_lengths, param_formats, 0);
+    last_seen_res =
+        PQexecParams(conn,
+                     "UPDATE users SET last_seen=NOW() FROM sessions WHERE "
+                     "sessions.id=$1 AND users.id=sessions.user_id",
+                     1, NULL, &token, param_lengths, param_formats, 0);
     if (!last_seen_res || PQresultStatus(last_seen_res) != PGRES_COMMAND_OK) {
       goto validate_token_end;
     }
     PQclear(last_seen_res);
-    last_seen_res = PQexecParams(
-        conn,
-        "UPDATE sessions SET last_seen=NOW() - INTERVAL '2000 hours' WHERE "
-        "id=$1",
-        1, NULL, &token, param_lengths, param_formats, 0);
+    last_seen_res =
+        PQexecParams(conn, "UPDATE sessions SET last_seen=NOW() WHERE id=$1", 1,
+                     NULL, &token, param_lengths, param_formats, 0);
     if (!last_seen_res || PQresultStatus(last_seen_res) != PGRES_COMMAND_OK) {
       goto validate_token_end;
     }
