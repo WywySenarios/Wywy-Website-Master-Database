@@ -76,6 +76,7 @@ int test_session() {
                      NULL, query_placeholders, NULL, NULL, 0);
   if (PQresultStatus(res) != PGRES_TUPLES_OK || PQntuples(res) != 1) {
     puts("create_session's related database record could not be found.");
+    PQclear(res);
     PQfinish(conn);
     return 0;
   }
@@ -84,7 +85,8 @@ int test_session() {
   char *secret_hash_hex1 = PQgetvalue(res, 0, 0);
 
   if (!secret_hash_hex1) {
-    puts("Unexpectedly NULL secret hash.");
+    puts("E: Unexpectedly NULL secret hash.");
+    PQclear(res);
     PQfinish(conn);
     return 0;
   }
