@@ -1,6 +1,7 @@
 #include <libpq-fe.h>
 
 #define MAX_PASSWORD_LENGTH 256
+#define MAX_USERNAME_LENGTH 32
 
 /**
  * Checks the given credentials. The password hash is checked in constant time.

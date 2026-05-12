@@ -11,6 +11,9 @@
 #define HEADER_CONFIG
 #include "config.h"
 #endif
+#include "auth/creds.h"
+#include "auth/login.h"
+#include "auth/session.h"
 #include "logging.h"
 #include "postgres.h"
 #include "postgres/insert.h"
@@ -48,7 +51,6 @@
 #define MAX_URL_SECTIONS 4  // must be 2 or larger
 #define MAX_REGEX_MATCHES 25
 #define NUM_DATATYPES_KEYS 1
-#define MAX_PASSWORD_LENGTH 255
 #define QUERY_SIZE_LIMIT 65536
 
 int done;
@@ -63,8 +65,6 @@ void handle_sigint(int signal_num) {
   done = 1;
   exit(0);
 }
-
-char *admin_creds;
 
 // nice global variables!
 static struct config *global_config = NULL;
@@ -309,50 +309,30 @@ void *handle_client(void *arg) {
     }
     regex_iterator_advance_cur(url_regex);
   }
-  // check if the user wants to authenticate
+
+  int is_whoami_request = 0;
+  // check if the user wants to authenticate or check who they are
   if (url_segments[0] && strcmp(url_segments[0], "auth") == 0) {
-    if (!body) {
-      build_response(400, &response, &response_len, "",
-                     "Failed to parse body. (Invalid/empty?)");
-      goto end;
-    }
-    if (strcmp(body, admin_creds) == 0) {
-      // @TODO do not hardcode
-      response_len = strlen("HTTP/1.1 200 OK\r\n"
-                            "Content-Type: text/plain\r\n"
-                            "Access-Control-Allow-Origin: \r\n"
-                            "Access-Control-Allow-Headers: Content-Type\r\n"
-                            "Access-Control-Allow-Credentials: true\r\n"
-                            "Set-Cookie: username=admin; Max-Age=\r\n"
-                            "Set-Cookie: password=; Max-Age=\r\n"
-                            "Connection: close\r\n"
-                            "\r\n") +
-                     strlen(getenv("AUTH_COOKIE_MAX_AGE")) +
-                     strlen(getenv("AUTH_COOKIE_MAX_AGE")) + strlen(body) +
-                     strlen(getenv("MAIN_URL"));
-      log_debug("Constructing 200 OK response: ---[Authentication]---\n\n");
-      response = malloc(response_len + 1);
-      snprintf(response, response_len + 1,
-               "HTTP/1.1 200 OK\r\n"
-               "Content-Type: text/plain\r\n"
-               "Access-Control-Allow-Origin: %s\r\n"
-               "Access-Control-Allow-Headers: Content-Type\r\n"
-               "Access-Control-Allow-Credentials: true\r\n"
-               "Set-Cookie: username=admin; Max-Age=%s\r\n"
-               "Set-Cookie: password=%s; Max-Age=%s\r\n"
-               "Connection: close\r\n"
-               "\r\n",
-               getenv("MAIN_URL"), getenv("AUTH_COOKIE_MAX_AGE"), body,
-               getenv("AUTH_COOKIE_MAX_AGE"));
-      goto end;
+    // who am I? endpoint
+    if (url_segments[1]) {
+      if (strcmp(url_segments[1], "whoami") == 0) {
+        is_whoami_request = 1;
+      } else {
+        build_response(400, &response, &response_len, "", "Bad URL.");
+        goto end;
+      }
     } else {
-      build_response(403, &response, &response_len, "", "Invalid credentials.");
-      goto end;
+      if (!body) {
+        build_response(400, &response, &response_len, "",
+                       "Failed to parse body. (Invalid/empty?)");
+        goto end;
+      } else {
+        handle_login(&response, &response_len, body);
+        goto end;
+      }
     }
   }
-  // @todo non-admin cookies
 
-  // @todo tokens
   regex_t raw_cookie_regex;
   regcomp(&raw_cookie_regex, "Cookie: (.*)[\r\n]", REG_EXTENDED);
 
@@ -361,8 +341,7 @@ void *handle_client(void *arg) {
   if (regexec(&raw_cookie_regex, buffer, 1 + 1, raw_cookie_matches, 0) ==
       REG_NOMATCH) {
     regfree(&raw_cookie_regex);
-    build_response(401, &response, &response_len, "",
-                   "Authentication failed. No username or password provided.");
+    build_response_default(401, &response, &response_len);
     goto end;
   }
 
@@ -373,9 +352,11 @@ void *handle_client(void *arg) {
   raw_cookies[raw_cookies_len] = '\0';
   regfree(&raw_cookie_regex);
 
-  bool admin_username = false;
-  bool admin_password = false;
-
+  char token[TOKEN_LENGTH + 1];
+  int token_present = 0;
+  char username[MAX_USERNAME_LENGTH];
+  username[0] = '\0'; // null terminate so strcmp works despite session
+                      // validation failure.
   regex_t cookie_regex;
   regcomp(&cookie_regex, "[ ]*([^= ;]+)[ ]*=[ ]*([^;\r\n]+)", REG_EXTENDED);
 
@@ -392,10 +373,11 @@ void *handle_client(void *arg) {
     strncpy(value, cursor + cookie_matches[2].rm_so, value_len);
     value[value_len] = '\0';
 
-    if (strcmp(key, "username") == 0)
-      admin_username = strcmp(value, "admin") == 0;
-    else if (strcmp(key, "password") == 0)
-      admin_password = strcmp(value, admin_creds) == 0;
+    if (strcmp(key, "session") == 0) {
+      token_present = 1;
+      strncpy(token, value, TOKEN_LENGTH);
+      token[TOKEN_LENGTH] = '\0';
+    }
 
     free(value);
     free(key);
@@ -409,10 +391,67 @@ void *handle_client(void *arg) {
 
   regfree(&cookie_regex);
   free(raw_cookies);
+  puts("hi");
+
+  if (is_whoami_request) {
+    if (!token_present) {
+      build_response_default(401, &response, &response_len);
+      goto end;
+    }
+
+    puts("g");
+
+    PGconn *auth_conn = connect_db("info");
+    if (errno) {
+      perror("auth db");
+      log_error(
+          "Failed to connect to info database for authentication purposes.");
+
+      build_response(500, &response, &response_len, "",
+                     "Something went wrong while authenticating.");
+    } else if (!auth_conn) {
+      log_error(
+          "Failed to connect to info database for authentication purposes.");
+      build_response(500, &response, &response_len, "",
+                     "Something went wrong when authenticating.");
+    } else if (validate_token(username, token, auth_conn)) {
+      build_response(200, &response, &response_len, "", username);
+    } else {
+      build_response_default(401, &response, &response_len);
+    }
+    PQfinish(auth_conn);
+    goto end;
+  }
+
+  puts("stupid");
 
   // require authentication for all other endpoints
-  if (!(admin_username && admin_password)) {
+  PGconn *auth_conn = connect_db("info");
+  if (!auth_conn) {
+    log_error(
+        "Failed to connect to info database for authentication purposes.");
+    build_response(500, &response, &response_len, "",
+                   "Something went wrong when authenticating.");
+    PQfinish(auth_conn);
+    goto end;
+  } else if (errno) {
+    perror("auth db");
+    build_response(500, &response, &response_len, "",
+                   "Something went wrong when authenticating.");
+    PQfinish(auth_conn);
+    goto end;
+  } else if (!token_present) {
+    build_response_default(401, &response, &response_len);
+    PQfinish(auth_conn);
+    goto end;
+  } else if (!validate_token(username, token, auth_conn)) {
     build_response(403, &response, &response_len, "", "Authentication failed.");
+    PQfinish(auth_conn);
+    goto end;
+  }
+
+  if (strcmp(username, "admin") != 0) {
+    build_response_default(501, &response, &response_len);
     goto end;
   }
 
@@ -1018,19 +1057,6 @@ end:
 }
 
 int main(int argc, char const *argv[]) {
-  // attempt to read admin password
-  admin_creds = malloc(MAX_PASSWORD_LENGTH + 1);
-  FILE *admin_secret = fopen("/run/secrets/admin", "r");
-
-  if (!admin_secret) {
-    log_critical("Could not find admin password secret.");
-    exit(EXIT_FAILURE);
-  }
-
-  fgets(admin_creds, MAX_PASSWORD_LENGTH + 1, admin_secret);
-
-  fclose(admin_secret);
-
   // setup for SIGTERM
   done = 0;
   signal(SIGTERM, handle_sigterm);
