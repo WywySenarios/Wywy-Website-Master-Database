@@ -34,6 +34,8 @@ void log_critical(const char *message) {
   fputs(message, stderr);
   fputs(message, logger);
   fputs(message, debug_logger);
+  fflush(logger);
+  fflush(debug_logger);
 }
 void log_error(const char *message) {
   pthread_once(&initialize_loggers_frequency, initialize_loggers);
@@ -41,6 +43,8 @@ void log_error(const char *message) {
   fputs(message, stderr);
   fputs(message, logger);
   fputs(message, debug_logger);
+  fflush(logger);
+  fflush(debug_logger);
 }
 void log_warn(const char *message) {
   pthread_once(&initialize_loggers_frequency, initialize_loggers);
@@ -48,17 +52,22 @@ void log_warn(const char *message) {
   fputs(message, stderr);
   fputs(message, logger);
   fputs(message, debug_logger);
+  fflush(logger);
+  fflush(debug_logger);
 }
 void log_info(const char *message) {
   pthread_once(&initialize_loggers_frequency, initialize_loggers);
 
-  fputs(message, stderr);
+  fputs(message, stdout);
   fputs(message, logger);
   fputs(message, debug_logger);
+  fflush(logger);
+  fflush(debug_logger);
 }
 void log_debug(const char *message) {
   pthread_once(&initialize_loggers_frequency, initialize_loggers);
   fputs(message, debug_logger);
+  fflush(debug_logger);
 }
 
 void log_critical_printf(const char *format, ...) {
@@ -73,6 +82,8 @@ void log_critical_printf(const char *format, ...) {
   vfprintf(stderr, format, arg);
   vfprintf(logger, format, arg1);
   vfprintf(debug_logger, format, arg2);
+  fflush(logger);
+  fflush(debug_logger);
 
   va_end(arg);
   va_end(arg1);
@@ -90,6 +101,8 @@ void log_error_printf(const char *format, ...) {
   vfprintf(stderr, format, arg);
   vfprintf(logger, format, arg1);
   vfprintf(debug_logger, format, arg2);
+  fflush(logger);
+  fflush(debug_logger);
 
   va_end(arg);
   va_end(arg1);
@@ -107,6 +120,8 @@ void log_warn_printf(const char *format, ...) {
   vfprintf(stderr, format, arg);
   vfprintf(logger, format, arg1);
   vfprintf(debug_logger, format, arg2);
+  fflush(logger);
+  fflush(debug_logger);
 
   va_end(arg);
   va_end(arg1);
@@ -124,6 +139,8 @@ void log_info_printf(const char *format, ...) {
   vfprintf(stdout, format, arg);
   vfprintf(logger, format, arg1);
   vfprintf(debug_logger, format, arg2);
+  fflush(logger);
+  fflush(debug_logger);
 
   va_end(arg);
   va_end(arg1);
@@ -136,6 +153,7 @@ void log_debug_printf(const char *format, ...) {
   va_start(arg, format);
 
   vfprintf(debug_logger, format, arg);
+  fflush(debug_logger);
 
   va_end(arg);
 }
