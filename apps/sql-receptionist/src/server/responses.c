@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 /**
  * Returns the name associated with the given status code.
  * @return the name associated with the given status code.
@@ -75,7 +76,7 @@ size_t write_header(const int status_code, char *buffer,
  * @param body response body string.
  */
 void build_response(int status_code, char **response, size_t *response_len,
-                    const char *body) {
+                    const char *headers, const char *body) {
   const char *status_code_name = get_status_code_name(status_code);
 
   if (getenv("SQL_RECEPTIONIST_LOG_RESPONSES") &&
@@ -96,7 +97,7 @@ void build_response(int status_code, char **response, size_t *response_len,
                          "Connection: \r\n"
                          "\r\n") +
                   strlen(status_code_name) + strlen(getenv("MAIN_URL")) +
-                  strlen(connection) + strlen(body);
+                  strlen(connection) + strlen(headers) + strlen(body);
   *response = malloc(*response_len + 1);
   if (!*response) {
     perror("Malloc failure on *response.");
@@ -108,9 +109,10 @@ void build_response(int status_code, char **response, size_t *response_len,
            "Access-Control-Allow-Origin: %s\r\n"
            "Access-Control-Allow-Headers: Content-Type\r\n"
            "Access-Control-Allow-Credentials: true\r\n"
-           "Connection: %s\r\n"
+           "Connection: %s\r\n%s"
            "\r\n%s",
-           status_code, status_code_name, getenv("MAIN_URL"), connection, body);
+           status_code, status_code_name, getenv("MAIN_URL"), connection,
+           headers, body);
 }
 
 /**
@@ -125,15 +127,15 @@ void build_response(int status_code, char **response, size_t *response_len,
  * @param ... body string content (args for vsnprintf).
  */
 void build_response_printf(int status_code, char **response,
-                           size_t *response_len, size_t text_size,
-                           const char *pattern, ...) {
+                           size_t *response_len, const char *headers,
+                           size_t text_size, const char *pattern, ...) {
   va_list arg;
   char *body = malloc(text_size + 1);
   va_start(arg, pattern);
   vsnprintf(body, text_size + 1, pattern, arg);
   va_end(arg);
 
-  build_response(status_code, response, response_len, body);
+  build_response(status_code, response, response_len, headers, body);
 
   free(body);
 }
@@ -149,22 +151,22 @@ void build_response_default(int status_code, char **response,
                             size_t *response_len) {
   switch (status_code) {
   case 200:
-    build_response(200, response, response_len, "OK");
+    build_response(200, response, response_len, "", "OK");
     break;
   case 204:
-    build_response(204, response, response_len, "No Content");
+    build_response(204, response, response_len, "", "No Content");
     break;
   case 400:
-    build_response(400, response, response_len, "Bad Request");
+    build_response(400, response, response_len, "", "Bad Request");
     break;
   case 403:
-    build_response(403, response, response_len, "Forbidden");
+    build_response(403, response, response_len, "", "Forbidden");
     break;
   case 404:
-    build_response(404, response, response_len, "Not Found");
+    build_response(404, response, response_len, "", "Not Found");
     break;
   case 500:
-    build_response(500, response, response_len, "Internal Server Error");
+    build_response(500, response, response_len, "", "Internal Server Error");
     break;
   }
 }

@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -g -I/usr/include/postgresql -Iinclude
-LDFLAGS = -L/usr/lib/x86_64-linux-gnu/ -lpq -lcyaml -ljansson
+LDFLAGS = -L/usr/lib/x86_64-linux-gnu/ -lpq -lcyaml -ljansson -lssl -lcrypto -largon2
 
 SRC := $(shell find src -name "*.c")
 OBJ := $(patsubst src/%.c, obj/%.o, $(SRC))

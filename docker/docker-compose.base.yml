@@ -42,6 +42,8 @@ services:
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/home/create_tables/config.yml
       - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/create_tables
+    secrets:
+      - admin
     depends_on:
       postgres:
         condition: service_healthy
