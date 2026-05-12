@@ -397,15 +397,12 @@ void *handle_client(void *arg) {
 
   regfree(&cookie_regex);
   free(raw_cookies);
-  puts("hi");
 
   if (is_whoami_request) {
     if (!token_present) {
       build_response_default(401, &response, &response_len);
       goto end;
     }
-
-    puts("g");
 
     PGconn *auth_conn = connect_db("info");
     if (errno) {
@@ -428,8 +425,6 @@ void *handle_client(void *arg) {
     PQfinish(auth_conn);
     goto end;
   }
-
-  puts("stupid");
 
   if (is_whoami_request) {
     if (!token_present) {
