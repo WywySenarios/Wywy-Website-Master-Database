@@ -159,6 +159,9 @@ void build_response_default(int status_code, char **response,
   case 400:
     build_response(400, response, response_len, "", "Bad Request");
     break;
+  case 401:
+    build_response(401, response, response_len, "", "Unauthorized");
+    break;
   case 403:
     build_response(403, response, response_len, "", "Forbidden");
     break;
