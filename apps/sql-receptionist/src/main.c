@@ -425,6 +425,34 @@ void *handle_client(void *arg) {
 
   puts("stupid");
 
+  if (is_whoami_request) {
+    if (!token_present) {
+      build_response_default(401, &response, &response_len);
+      goto end;
+    }
+
+    PGconn *auth_conn = connect_db("info");
+    if (errno) {
+      perror("auth db");
+      log_error(
+          "Failed to connect to info database for authentication purposes.");
+
+      build_response(500, &response, &response_len, "",
+                     "Something went wrong while authenticating.");
+    } else if (!auth_conn) {
+      log_error(
+          "Failed to connect to info database for authentication purposes.");
+      build_response(500, &response, &response_len, "",
+                     "Something went wrong when authenticating.");
+    } else if (validate_token(username, token, auth_conn)) {
+      build_response(200, &response, &response_len, "", username);
+    } else {
+      build_response_default(401, &response, &response_len);
+    }
+    PQfinish(auth_conn);
+    goto end;
+  }
+
   // require authentication for all other endpoints
   PGconn *auth_conn = connect_db("info");
   if (!auth_conn) {
