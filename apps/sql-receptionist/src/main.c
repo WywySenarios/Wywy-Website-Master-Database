@@ -322,6 +322,11 @@ void *handle_client(void *arg) {
     if (url_segments[1]) {
       if (strcmp(url_segments[1], "whoami") == 0) {
         is_whoami_request = 1;
+      } else if (strcmp(url_segments[1], "logout") == 0) {
+        build_response(200, &response, &response_len,
+                       "Set-Cookie: session=expired; Max-Age: 0\r\n",
+                       "Goodbye!");
+        goto end;
       } else {
         build_response(400, &response, &response_len, cookie_header,
                        "Bad URL.");
