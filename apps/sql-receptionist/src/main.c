@@ -99,11 +99,13 @@ static int tag_groups_schema_count = 2;
  * @param conn The connection to pass into sql_query
  * @param response The response variable to pass into build_response... .
  * @param response_len The response length variable to pass into
+ * @param cookie_header
  * build_response... .
  */
 void generic_select_query_and_respond(const char *database_name, char *query,
                                       PGresult **res, PGconn **conn,
-                                      char **response, size_t *response_len) {
+                                      char **response, size_t *response_len,
+                                      const char *cookie_header) {
 
   if (!*conn)
     *conn = connect_db(database_name);
@@ -123,7 +125,7 @@ void generic_select_query_and_respond(const char *database_name, char *query,
   *response_len = write_header(200, *response, BUFFER_SIZE);
   if (*response_len + 1 >= BUFFER_SIZE) {
     free(*response);
-    build_response_printf(500, response, response_len, "",
+    build_response_printf(500, response, response_len, cookie_header,
                           strlen("No memory") + 1, "No memory.");
     return;
   }
@@ -134,7 +136,7 @@ void generic_select_query_and_respond(const char *database_name, char *query,
   if (errno) {
     perror("SELECT query result serialization");
     free(*response);
-    build_response_printf(500, response, response_len, "",
+    build_response_printf(500, response, response_len, cookie_header,
                           strlen("Server-side serialization failed.") + 1,
                           "Server-side serialization failed.");
     errno = 0;
@@ -163,6 +165,8 @@ void *handle_client(void *arg) {
   // variables that are generally useful:
   char *method = NULL;
   char *headers = NULL;
+  char cookie_header[TOKEN_COOKIE_HEADER_MAX_LENGTH + 1];
+  *cookie_header = '\0'; // do not cause memory violations if auth fails
   char *url = NULL;
   char *url_segments[MAX_URL_SECTIONS];
   for (int i = 0; i < MAX_URL_SECTIONS; i++)
@@ -188,7 +192,7 @@ void *handle_client(void *arg) {
   ssize_t bytes_received = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
 
   if (bytes_received <= 0) {
-    build_response(400, &response, &response_len, "",
+    build_response(400, &response, &response_len, cookie_header,
                    "No request data received.");
     goto end;
   }
@@ -209,13 +213,14 @@ void *handle_client(void *arg) {
 
   // catch malloc failure, etc.
   if (!matches) {
-    build_response(500, &response, &response_len, "",
+    build_response(500, &response, &response_len, cookie_header,
                    "Something unexpected happened.");
     goto end;
   }
 
   if (!regmatch_has_match(matches, 1) || !regmatch_has_match(matches, 2)) {
-    build_response(400, &response, &response_len, "", "Bad HTTP request.");
+    build_response(400, &response, &response_len, cookie_header,
+                   "Bad HTTP request.");
     goto end;
   }
 
@@ -223,7 +228,7 @@ void *handle_client(void *arg) {
   method = regmatch_get_match(matches, 1, buffer);
 
   if (!method) {
-    build_response(500, &response, &response_len, "",
+    build_response(500, &response, &response_len, cookie_header,
                    "Something unexpected happened.");
     goto end;
   }
@@ -238,7 +243,7 @@ void *handle_client(void *arg) {
   int headers_len = matches[3].rm_so;
   headers = malloc(headers_len + 1);
   if (!headers) {
-    build_response(500, &response, &response_len, "",
+    build_response(500, &response, &response_len, cookie_header,
                    "Something unexpected happened while extracting headers.");
     goto end;
   }
@@ -264,7 +269,7 @@ void *handle_client(void *arg) {
   free(main_origin_check);
   free(cache_origin_check);
   if (origin_check_res != 1 && cache_check_res != 1) {
-    build_response(400, &response, &response_len, "",
+    build_response(400, &response, &response_len, cookie_header,
                    "Bad origin. Compromised browser?");
     goto end;
   }
@@ -302,7 +307,7 @@ void *handle_client(void *arg) {
       break;
     url_segments[i] = regex_iterator_get_match(url_regex, 1);
     if (!url_segments[i]) {
-      build_response(500, &response, &response_len, "",
+      build_response(500, &response, &response_len, cookie_header,
                      "Memory allocation failed.");
       perror("URL section malloc failure");
       goto end;
@@ -318,12 +323,13 @@ void *handle_client(void *arg) {
       if (strcmp(url_segments[1], "whoami") == 0) {
         is_whoami_request = 1;
       } else {
-        build_response(400, &response, &response_len, "", "Bad URL.");
+        build_response(400, &response, &response_len, cookie_header,
+                       "Bad URL.");
         goto end;
       }
     } else {
       if (!body) {
-        build_response(400, &response, &response_len, "",
+        build_response(400, &response, &response_len, cookie_header,
                        "Failed to parse body. (Invalid/empty?)");
         goto end;
       } else {
@@ -407,15 +413,15 @@ void *handle_client(void *arg) {
       log_error(
           "Failed to connect to info database for authentication purposes.");
 
-      build_response(500, &response, &response_len, "",
+      build_response(500, &response, &response_len, cookie_header,
                      "Something went wrong while authenticating.");
     } else if (!auth_conn) {
       log_error(
           "Failed to connect to info database for authentication purposes.");
-      build_response(500, &response, &response_len, "",
+      build_response(500, &response, &response_len, cookie_header,
                      "Something went wrong when authenticating.");
     } else if (validate_token(username, token, auth_conn)) {
-      build_response(200, &response, &response_len, "", username);
+      build_response(200, &response, &response_len, cookie_header, username);
     } else {
       build_response_default(401, &response, &response_len);
     }
@@ -437,15 +443,15 @@ void *handle_client(void *arg) {
       log_error(
           "Failed to connect to info database for authentication purposes.");
 
-      build_response(500, &response, &response_len, "",
+      build_response(500, &response, &response_len, cookie_header,
                      "Something went wrong while authenticating.");
     } else if (!auth_conn) {
       log_error(
           "Failed to connect to info database for authentication purposes.");
-      build_response(500, &response, &response_len, "",
+      build_response(500, &response, &response_len, cookie_header,
                      "Something went wrong when authenticating.");
     } else if (validate_token(username, token, auth_conn)) {
-      build_response(200, &response, &response_len, "", username);
+      build_response(200, &response, &response_len, cookie_header, username);
     } else {
       build_response_default(401, &response, &response_len);
     }
@@ -458,13 +464,13 @@ void *handle_client(void *arg) {
   if (!auth_conn) {
     log_error(
         "Failed to connect to info database for authentication purposes.");
-    build_response(500, &response, &response_len, "",
+    build_response(500, &response, &response_len, cookie_header,
                    "Something went wrong when authenticating.");
     PQfinish(auth_conn);
     goto end;
   } else if (errno) {
     perror("auth db");
-    build_response(500, &response, &response_len, "",
+    build_response(500, &response, &response_len, cookie_header,
                    "Something went wrong when authenticating.");
     PQfinish(auth_conn);
     goto end;
@@ -473,9 +479,12 @@ void *handle_client(void *arg) {
     PQfinish(auth_conn);
     goto end;
   } else if (!validate_token(username, token, auth_conn)) {
-    build_response(403, &response, &response_len, "", "Authentication failed.");
+    build_response(403, &response, &response_len, cookie_header,
+                   "Authentication failed.");
     PQfinish(auth_conn);
     goto end;
+  } else {
+    memcpy(write_cookie_header(cookie_header), token, sizeof(token) - 1);
   }
 
   if (strcmp(username, "admin") != 0) {
@@ -488,7 +497,7 @@ void *handle_client(void *arg) {
 
   // ensure that there is a target database
   if (!database_name) {
-    build_response(400, &response, &response_len, "",
+    build_response(400, &response, &response_len, cookie_header,
                    "Database name was not supplied.");
     goto end;
   }
@@ -504,7 +513,8 @@ void *handle_client(void *arg) {
 
   // ensure that there is a target database
   if (!database) {
-    build_response(400, &response, &response_len, "", "Database not found.");
+    build_response(400, &response, &response_len, cookie_header,
+                   "Database not found.");
     goto end;
   }
 
@@ -512,7 +522,7 @@ void *handle_client(void *arg) {
 
   // ensure that there is a target table
   if (!table_name) {
-    build_response(400, &response, &response_len, "",
+    build_response(400, &response, &response_len, cookie_header,
                    "Table name not supplied.");
     goto end;
   }
@@ -527,7 +537,8 @@ void *handle_client(void *arg) {
 
   // ensure that there is a target table
   if (!table) {
-    build_response(400, &response, &response_len, "", "Table not found.");
+    build_response(400, &response, &response_len, cookie_header,
+                   "Table not found.");
     goto end;
   }
   // END - check URL
@@ -563,7 +574,7 @@ void *handle_client(void *arg) {
         table_type = TAGS_TABLE;
         // check if tagging is enabled
         if (!table->tagging) {
-          build_response_printf(400, &response, &response_len, "",
+          build_response_printf(400, &response, &response_len, cookie_header,
                                 strlen("Tagging is not enabled on table \"\""),
                                 "Tagging is not enabled on table \"%s\"",
                                 table_name);
@@ -582,7 +593,7 @@ void *handle_client(void *arg) {
         table_type = TAG_NAMES_TABLE;
         // check if tagging is enabled
         if (!table->tagging) {
-          build_response_printf(400, &response, &response_len, "",
+          build_response_printf(400, &response, &response_len, cookie_header,
                                 strlen("Tagging is not enabled on table \"\""),
                                 "Tagging is not enabled on table \"%s\"",
                                 table_name);
@@ -602,7 +613,7 @@ void *handle_client(void *arg) {
         table_type = TAG_ALIASES_TABLE;
         // check if tagging is enabled
         if (!table->tagging) {
-          build_response_printf(400, &response, &response_len, "",
+          build_response_printf(400, &response, &response_len, cookie_header,
                                 strlen("Tagging is not enabled on table \"\""),
                                 "Tagging is not enabled on table \"%s\"",
                                 table_name);
@@ -623,7 +634,7 @@ void *handle_client(void *arg) {
       } else if (strcmp(url_segments[2], "descriptors") == 0) {
         table_type = DESCRIPTORS_TABLE;
         if (!url_segments[3]) {
-          build_response_printf(400, &response, &response_len, "",
+          build_response_printf(400, &response, &response_len, cookie_header,
                                 strlen("Descriptor name not provided."),
                                 "Descriptor name not provided.");
           goto end;
@@ -654,7 +665,7 @@ void *handle_client(void *arg) {
         }
 
         if (!descriptor_schema_found) {
-          build_response_printf(400, &response, &response_len, "",
+          build_response_printf(400, &response, &response_len, cookie_header,
                                 strlen("Descriptor not found."),
                                 "Descriptor not found.");
           goto end;
@@ -662,13 +673,13 @@ void *handle_client(void *arg) {
 
         options.table_name = computed_table_name;
       } else {
-        build_response(400, &response, &response_len, "",
+        build_response(400, &response, &response_len, cookie_header,
                        "Unknown or unsupported table URL.");
         goto end;
       } // @TODO tag groups
       // REQUIRES querystring to run
       if (querystring == NULL) {
-        build_response(400, &response, &response_len, "",
+        build_response(400, &response, &response_len, cookie_header,
                        "The querystring cannot be empty. It needs to specify "
                        "SELECT options.");
         goto end;
@@ -679,7 +690,7 @@ void *handle_client(void *arg) {
       querystring_regex =
           create_regex_iterator("[&]?([^=]+)=([^&]+)", 2, REG_EXTENDED);
       if (!querystring_regex) {
-        build_response(500, &response, &response_len, "",
+        build_response(500, &response, &response_len, cookie_header,
                        "Something went wrong while parsing the querystring.");
         goto end;
       }
@@ -703,7 +714,7 @@ void *handle_client(void *arg) {
           } else if (strcmp(value, "DESC") == 0) {
             options.order_by_order = "DESC";
           } else {
-            build_response(400, &response, &response_len, "",
+            build_response(400, &response, &response_len, cookie_header,
                            "Invalid ORDER_BY value. Expected ASC or DESC.");
             goto end;
           }
@@ -716,13 +727,13 @@ void *handle_client(void *arg) {
             options.filter_value = filter_value;
             break;
           case 0:
-            build_response(400, &response, &response_len, "",
+            build_response(400, &response, &response_len, cookie_header,
                            "Invalid ID to filter by. Expected an integer.");
             goto end;
           default:
             log_critical("Regcomp failed on querystring ID.\n");
             build_response(
-                400, &response, &response_len, "",
+                400, &response, &response_len, cookie_header,
                 "Something went wrong while trying to parse the querystring.");
             goto end;
           }
@@ -742,7 +753,7 @@ void *handle_client(void *arg) {
             break;
           default:
             build_response(
-                400, &response, &response_len, "",
+                400, &response, &response_len, cookie_header,
                 "This table type does not support selection by parent id.");
             goto end;
           }
@@ -754,18 +765,18 @@ void *handle_client(void *arg) {
             break;
           case 0:
             build_response(
-                400, &response, &response_len, "",
+                400, &response, &response_len, cookie_header,
                 "Invalid parent ID to filter by. Expected an integer.");
             goto end;
           default:
             log_critical("Regcomp failed on querystring parent ID.\n");
             build_response(
-                400, &response, &response_len, "",
+                400, &response, &response_len, cookie_header,
                 "Something went wrong while trying to parse the querystring.");
             goto end;
           }
         } else {
-          build_response_printf(400, &response, &response_len, "",
+          build_response_printf(400, &response, &response_len, cookie_header,
                                 strlen("Invalid querystring key: \"\".") +
                                     strlen(key),
                                 "Invalid querystring key: \"%s\".", key);
@@ -782,20 +793,21 @@ void *handle_client(void *arg) {
         construct_select_query(&options, query, QUERY_SIZE_LIMIT);
         if (errno) {
           perror("Data table SELECT query construction");
-          build_response(500, &response, &response_len, "",
+          build_response(500, &response, &response_len, cookie_header,
                          "Server-side SELECT query construction failure.");
           goto end;
         }
         generic_select_query_and_respond(database_name, query, &res, &conn,
-                                         &response, &response_len);
+                                         &response, &response_len,
+                                         cookie_header);
       } else {
-        build_response(400, &response, &response_len, "",
+        build_response(400, &response, &response_len, cookie_header,
                        "SELECT queries need a valid ordering (ORDER_BY) and a "
                        "valid limit (contact dev if LIMIT is not set).");
       }
     } else {
       // user does not have read access to the respective table
-      build_response_printf(403, &response, &response_len, "",
+      build_response_printf(403, &response, &response_len, cookie_header,
                             strlen("Read is not enabled on table .") +
                                 strlen(table->table_name),
                             "Read is not enabled on "
@@ -807,7 +819,7 @@ void *handle_client(void *arg) {
     if (table->write) {
       // verify the schema
       if (!body) {
-        build_response(400, &response, &response_len, "",
+        build_response(400, &response, &response_len, cookie_header,
                        "Failed to parse body. (Invalid/empty?)");
         goto end;
       }
@@ -820,14 +832,14 @@ void *handle_client(void *arg) {
 
       if (!entry) {
         // @TODO respond with line number, etc.
-        build_response_printf(400, &response, &response_len, "",
+        build_response_printf(400, &response, &response_len, cookie_header,
                               strlen(entry_error.text), "%s", entry_error.text);
         goto schema_mismatch_end;
       }
 
       char *target_type = url_segments[2];
       if (!target_type) {
-        build_response(400, &response, &response_len, "",
+        build_response(400, &response, &response_len, cookie_header,
                        "No target table type supplied.");
         goto schema_mismatch_end;
       }
@@ -840,7 +852,7 @@ void *handle_client(void *arg) {
         options.primary_tag = table->tagging;
       } else if (strcmp(target_type, "descriptors") == 0) {
         if (!table->descriptors) {
-          build_response_printf(400, &response, &response_len, "",
+          build_response_printf(400, &response, &response_len, cookie_header,
                                 strlen("Table does not have descriptors.") +
                                     strlen(table_name),
                                 "Table %s does not "
@@ -852,7 +864,7 @@ void *handle_client(void *arg) {
         char *descriptor_name = url_segments[3];
 
         if (!descriptor_name) {
-          build_response(400, &response, &response_len, "",
+          build_response(400, &response, &response_len, cookie_header,
                          "No descriptor was provided.");
           goto schema_mismatch_end;
         }
@@ -867,7 +879,7 @@ void *handle_client(void *arg) {
         }
 
         if (!options.schema || options.schema_count == -1) {
-          build_response(400, &response, &response_len, "",
+          build_response(400, &response, &response_len, cookie_header,
                          "Descriptor schema not found.");
           goto schema_mismatch_end;
         }
@@ -883,7 +895,7 @@ void *handle_client(void *arg) {
         to_lower_snake_case(table_name);
       } else if (strcmp(target_type, "tags") == 0) {
         if (!table->tagging) {
-          build_response(400, &response, &response_len, "",
+          build_response(400, &response, &response_len, cookie_header,
                          "This table does not have tagging enabled.");
           goto schema_mismatch_end;
         }
@@ -896,7 +908,7 @@ void *handle_client(void *arg) {
             replace_table_name(table_name, "_tags");
       } else if (strcmp(target_type, "tag_names") == 0) {
         if (!table->tagging) {
-          build_response(400, &response, &response_len, "",
+          build_response(400, &response, &response_len, cookie_header,
                          "This table does not have tagging enabled.");
           goto schema_mismatch_end;
         }
@@ -911,7 +923,7 @@ void *handle_client(void *arg) {
             replace_table_name(table_name, "_tag_names");
       } else if (strcmp(target_type, "tag_aliases") == 0) {
         if (!table->tagging) {
-          build_response(400, &response, &response_len, "",
+          build_response(400, &response, &response_len, cookie_header,
                          "This table does not have tagging enabled.");
           goto schema_mismatch_end;
         }
@@ -928,7 +940,7 @@ void *handle_client(void *arg) {
             replace_table_name(table_name, "_tag_aliases");
       } else if (strcmp(target_type, "tag_groups") == 0) {
         if (!table->tagging) {
-          build_response(400, &response, &response_len, "",
+          build_response(400, &response, &response_len, cookie_header,
                          "This table does not have tagging enabled.");
           goto schema_mismatch_end;
         }
@@ -940,14 +952,14 @@ void *handle_client(void *arg) {
         options.table_name = url_segments[1] = table_name =
             replace_table_name(table_name, "_tag_groups");
       } else {
-        build_response(400, &response, &response_len, "",
+        build_response(400, &response, &response_len, cookie_header,
                        "Invalid target table type.");
         goto schema_mismatch_end;
       }
 
       if (!options.schema || options.schema_count == -1) {
         build_response(
-            500, &response, &response_len, "",
+            500, &response, &response_len, cookie_header,
             "Bad target table schema. Contact website maintainer for a fix.");
         goto schema_mismatch_end;
       }
@@ -978,7 +990,7 @@ void *handle_client(void *arg) {
           errno = 0;
         }
 
-        build_response_printf(400, &response, &response_len, "",
+        build_response_printf(400, &response, &response_len, cookie_header,
                               strlen("The given entry does not "
                                      "conform to the schema: ") +
                                   strlen(error_buffer),
@@ -990,7 +1002,7 @@ void *handle_client(void *arg) {
         break;
       default:
         build_response_printf(
-            500, &response, &response_len, "",
+            500, &response, &response_len, cookie_header,
             strlen("Something went wrong while checking your entry with "
                    "the schema: ") +
                 ERROR_BUFFER_SIZE,
@@ -1028,15 +1040,15 @@ void *handle_client(void *arg) {
         log_debug_printf("Database INSERT error: %s, %s\n", status_message,
                          error_message);
 
-        build_response_printf(500, &response, &response_len, "",
+        build_response_printf(500, &response, &response_len, cookie_header,
                               strlen(status_message) + 2 +
                                   strlen(error_message) + 1,
                               "%s: %s", status_message, error_message);
       } else if (unexpected_return) {
-        build_response(500, &response, &response_len, "",
+        build_response(500, &response, &response_len, cookie_header,
                        "Query return value is unexpectedly NULL.");
       } else
-        build_response(200, &response, &response_len, "", value);
+        build_response(200, &response, &response_len, cookie_header, value);
 
     schema_mismatch_end:
     post_bad_input_end:
@@ -1047,12 +1059,12 @@ void *handle_client(void *arg) {
     } else {
       // user does not have write access to the respective table
       build_response_printf(
-          403, &response, &response_len, "",
+          403, &response, &response_len, cookie_header,
           strlen("Write is not enabled on table .") + strlen(table->table_name),
           "Write is not enabled on table %s.", table->table_name);
     }
   } else {
-    build_response(400, &response, &response_len, "",
+    build_response(400, &response, &response_len, cookie_header,
                    "Unsupported HTTP method.");
   }
 
