@@ -180,6 +180,7 @@ void *handle_client(void *arg) {
   struct table *table = NULL;
   struct regex_iterator *querystring_regex = NULL;
   PGconn *conn = NULL;
+  PGconn *auth_conn = NULL;
   PGresult *res = NULL;
   char *query = NULL;
 
@@ -460,7 +461,7 @@ void *handle_client(void *arg) {
   }
 
   // require authentication for all other endpoints
-  PGconn *auth_conn = connect_db("info");
+  auth_conn = connect_db("info");
   if (!auth_conn) {
     log_error(
         "Failed to connect to info database for authentication purposes.");
@@ -1090,6 +1091,7 @@ end:
   }
   free_regex_iterator(url_regex);
   free_regex_iterator(querystring_regex);
+  PQfinish(auth_conn);
   PQfinish(conn);
   PQclear(res);
   free(query);
