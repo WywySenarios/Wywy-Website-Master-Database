@@ -89,7 +89,6 @@ int validate_token(char *username, const char *token, PGconn *conn) {
   if (strlen(age) > 1) {
     // update last seen after 1 hour
     // it's OK for this to fail and run the next time
-    puts(token);
     last_seen_res =
         PQexecParams(conn,
                      "UPDATE users SET last_seen=NOW() FROM sessions WHERE "
