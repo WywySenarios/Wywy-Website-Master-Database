@@ -222,6 +222,53 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
       }
     }
 
+    // enforce polypointer child columns
+    if (strcmp(options->schema[i].datatype, "polypointer") == 0 ||
+        strcmp(options->schema[i].datatype, "polymorphic pointer") == 0) {
+      write_and_access_child_column_name(
+          query_cur, query_remaining_size, query_cur_checkpoint,
+          options->schema[i].name, "_type");
+      if (current_item) {
+        if (!validate_column(current_item, options->schema[i], POINTER_TYPE)) {
+          snprintf(error_buffer, ERROR_BUFFER_SIZE,
+                   "Datatype mismatch: type sub-column of \"%s\" should be a "
+                   "string.",
+                   options->schema[i].name);
+          return 0;
+        }
+
+        // validate that the target table exists in the database
+        const char *type_value = json_string_value(current_item);
+        if (type_value) {
+          const char *check_query =
+              "SELECT EXISTS (SELECT FROM pg_tables WHERE tablename = $1)";
+          const char *check_params[1] = {type_value};
+          PGresult *table_check =
+              PQexecParams(conn, check_query, 1, NULL, check_params, NULL, NULL,
+                           0);
+          int table_exists = 0;
+          if (table_check &&
+              PQresultStatus(table_check) == PGRES_TUPLES_OK &&
+              PQntuples(table_check) == 1) {
+            table_exists =
+                strcmp(PQgetvalue(table_check, 0, 0), "t") == 0;
+          }
+          PQclear(table_check);
+          if (!table_exists) {
+            snprintf(error_buffer, ERROR_BUFFER_SIZE,
+                     "Validation error: target table \"%s\" does not exist.",
+                     type_value);
+            return 0;
+          }
+        }
+
+        write_placeholder_value();
+      } else {
+        revert_cur_checkpoint(query_cur, query_remaining_size,
+                              query_cur_checkpoint);
+      }
+    }
+
     // enforce columns (optional)
     if (options->schema[i].comments) {
       write_and_access_child_column_name(query_cur, query_remaining_size,
@@ -331,8 +378,18 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
       cur_memcpy(query_cur, query_remaining_size,
                  "_altitude_accuracy = EXCLUDED.");
       cur_write_column_name(query_cur, query_remaining_size,
-                            options->schema[i].name);
+                             options->schema[i].name);
       cur_memcpy(query_cur, query_remaining_size, "_altitude_accuracy,");
+    }
+
+    if (strcmp(options->schema[i].datatype, "polypointer") == 0 ||
+        strcmp(options->schema[i].datatype, "polymorphic pointer") == 0) {
+      cur_write_column_name(query_cur, query_remaining_size,
+                             options->schema[i].name);
+      cur_memcpy(query_cur, query_remaining_size, "_type = EXCLUDED.");
+      cur_write_column_name(query_cur, query_remaining_size,
+                             options->schema[i].name);
+      cur_memcpy(query_cur, query_remaining_size, "_type,");
     }
 
     if (options->schema[i].comments) {

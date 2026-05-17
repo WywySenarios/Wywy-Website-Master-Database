@@ -14,7 +14,11 @@ int main() {
   RUN_TEST_SUITE(login)
   RUN_TEST_SUITE(handle_login)
 
-  // test_check_st_point();
+  test_check_st_point();
+  RUN_TEST_SUITE(pointer_datatype)
+  RUN_TEST_SUITE(polypointer_datatype)
+  RUN_TEST_SUITE(polymorphic_pointer_datatype)
+  RUN_TEST_SUITE(pointer_type_subcolumn)
 
   puts("Testing complete.");
   return 0;

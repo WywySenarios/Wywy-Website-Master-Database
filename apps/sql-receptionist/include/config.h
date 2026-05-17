@@ -15,6 +15,7 @@ enum column_type {
   LATLONG_ACCURACY,
   ALTITUDE,
   ALTITUDE_ACCURACY,
+  POINTER_TYPE,
 };
 
 struct data_column {
@@ -22,6 +23,7 @@ struct data_column {
   const char *datatype;  // @todo validation
   bool comments;         // optional, ?useless here?
   const char *entrytype; // useless here
+  const char *references;
 };
 
 struct descriptor {

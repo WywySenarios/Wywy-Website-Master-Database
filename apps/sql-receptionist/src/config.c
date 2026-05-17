@@ -22,6 +22,10 @@ static const cyaml_schema_field_t data_column_fields_schema[] = {
 
     CYAML_FIELD_STRING_PTR("entrytype", CYAML_FLAG_POINTER, struct data_column,
                            entrytype, 0, CYAML_UNLIMITED),
+
+    CYAML_FIELD_STRING_PTR("references",
+                           CYAML_FLAG_POINTER | CYAML_FLAG_OPTIONAL,
+                           struct data_column, references, 0, CYAML_UNLIMITED),
     CYAML_FIELD_END};
 
 static const cyaml_schema_value_t data_column_schema = {

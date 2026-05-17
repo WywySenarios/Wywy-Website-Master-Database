@@ -845,7 +845,8 @@ void *handle_client(void *arg) {
         goto schema_mismatch_end;
       }
 
-      struct insert_options options = {table_name, NULL, -1, 0, "id", 0, "id"};
+      struct insert_options options = {table_name, NULL, -1, 0, "id", 0, "id",
+                                       database};
       if (strcmp(target_type, "data") == 0) {
         // no additional checks needed
         options.schema = table->schema;
