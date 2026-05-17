@@ -428,7 +428,6 @@ void *handle_client(void *arg) {
     } else {
       build_response_default(401, &response, &response_len);
     }
-    PQfinish(auth_conn);
     goto end;
   }
 
@@ -456,7 +455,6 @@ void *handle_client(void *arg) {
     } else {
       build_response_default(401, &response, &response_len);
     }
-    PQfinish(auth_conn);
     goto end;
   }
 
@@ -467,22 +465,18 @@ void *handle_client(void *arg) {
         "Failed to connect to info database for authentication purposes.");
     build_response(500, &response, &response_len, cookie_header,
                    "Something went wrong when authenticating.");
-    PQfinish(auth_conn);
     goto end;
   } else if (errno) {
     perror("auth db");
     build_response(500, &response, &response_len, cookie_header,
                    "Something went wrong when authenticating.");
-    PQfinish(auth_conn);
     goto end;
   } else if (!token_present) {
     build_response_default(401, &response, &response_len);
-    PQfinish(auth_conn);
     goto end;
   } else if (!validate_token(username, token, auth_conn)) {
     build_response(403, &response, &response_len, cookie_header,
                    "Authentication failed.");
-    PQfinish(auth_conn);
     goto end;
   } else {
     memcpy(write_cookie_header(cookie_header), token, sizeof(token) - 1);
