@@ -735,15 +735,15 @@ void *handle_client(void *arg) {
         } else if (strcmp(key, "parent_id") == 0) {
           switch (table_type) {
           case TAG_ALIASES_TABLE:;
-            options.filter_table_name = table_name;
+            // options.filter_table_name = table_name;
             options.filter_column_name = "tag_id";
             break;
           case TAGS_TABLE:
-            options.filter_table_name = table_name;
+            // options.filter_table_name = table_name;
             options.filter_column_name = "entry_id";
             break;
           case DESCRIPTORS_TABLE:
-            options.filter_table_name = table_name;
+            // options.filter_table_name = table_name;
             options.filter_column_name = "id";
             break;
           default:
@@ -839,8 +839,8 @@ void *handle_client(void *arg) {
         goto schema_mismatch_end;
       }
 
-      struct insert_options options = {table_name, NULL, -1, 0, "id", 0, "id",
-                                       database};
+      struct insert_options options = {table_name, NULL, -1,   0,
+                                       "id",       0,    "id", database};
       if (strcmp(target_type, "data") == 0) {
         // no additional checks needed
         options.schema = table->schema;
