@@ -2,15 +2,16 @@ from os import environ
 from typing import Literal, Any
 from wywy_website_types import Datatype, PostgresDatatype
 from string import Template
+from psycopg import connect
 
 SQL_RECEPTIONIST_URL = f"http://{environ["SQL_RECEPTIONIST_HOST"]}:2523"
 SQL_RECEPTIONIST_ADMIN_USERNAME = "admin"
 f = open("/run/secrets/admin", "r")
 SQL_RECEPTIONIST_PASSWORD = f.read()
 f.close()
+
 AUTH_COOKIES: dict[str, str] = {
-    "username": "admin",
-    "password": SQL_RECEPTIONIST_PASSWORD,
+    "session": "aaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaa"
 }
 GENERIC_REQUEST_PARAMS: dict[str, Any] = {
     "headers": {"Origin": environ["MAIN_URL"]},
@@ -76,3 +77,14 @@ CONN_CONFIG: dict[Literal["host", "port", "user", "password", "sslmode"], str] =
     "password": environ["DATABASE_PASSWORD"],
     "sslmode": "prefer",
 }
+
+with connect(**CONN_CONFIG, dbname="info") as conn:
+    conn.execute("""
+        INSERT INTO sessions (id, user_id, secret_hash)
+        VALUES (
+            'aaaaaaaaaaaaaaaaaaaaaaaa',
+            (SELECT id FROM users WHERE username = 'admin'),
+            encode(sha256('aaaaaaaaaaaaaaaaaaaaaaaa'::bytea), 'hex')
+        )
+        ON CONFLICT (id) DO NOTHING
+    """)

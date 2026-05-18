@@ -33,13 +33,13 @@ def test_endpoint_security(test_object: unittest.TestCase, endpoint: str) -> Non
         )
         test_object.assertEqual(
             response.status_code,
-            403,
-            f"Invalid authentication (missing authentication attribute) did not respond with status 403: {response.status_code}: {response.text}",
+            401,
+            f"Unauthenticated request (missing session cookie) did not respond with status 401: {response.status_code}: {response.text}",
         )
 
     for key in AUTH_COOKIES:
         cookies = {**AUTH_COOKIES}
-        cookies[key] += " <- is now invalid"
+        cookies[key] = "bbbbbbbbbbbbbbbbbbbbbbbb.bbbbbbbbbbbbbbbbbbbbbbbb"
 
         response = requests.post(
             endpoint,
@@ -50,5 +50,5 @@ def test_endpoint_security(test_object: unittest.TestCase, endpoint: str) -> Non
         test_object.assertEqual(
             response.status_code,
             403,
-            f"Invalid authentication (incorrect attribute) did not respond with status 403: {response.status_code}: {response.text}",
+            f"Invalid authentication (incorrect session token) did not respond with status 403: {response.status_code}: {response.text}",
         )
