@@ -1,0 +1,7 @@
+#include "test_case.h"
+
+DEFINE_TEST_SUITE(search_table_type_detection)
+DEFINE_TEST_SUITE(search_display_column)
+DEFINE_TEST_SUITE(search_q_parseability)
+DEFINE_TEST_SUITE(search_query_building)
+DEFINE_TEST_SUITE(search_response_serialization)

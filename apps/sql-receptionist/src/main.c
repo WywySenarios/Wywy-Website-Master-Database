@@ -17,6 +17,7 @@
 #include "logging.h"
 #include "postgres.h"
 #include "postgres/insert.h"
+#include "postgres/search.h"
 #include "postgres/select.h"
 #include "server/responses.h"
 #include "utils/format_string.h"
@@ -513,15 +514,51 @@ void *handle_client(void *arg) {
     goto end;
   }
 
-  table_name = url_segments[1];
+  // check for search endpoint
+  if (url_segments[2] && strcmp(url_segments[2], "search") == 0) {
+    char *search_table_name = url_segments[1];
+    if (!search_table_name) {
+      build_response(400, &response, &response_len, cookie_header,
+                     "Table name not supplied.");
+      goto end;
+    }
+    to_lower_snake_case(search_table_name);
 
-  // ensure that there is a target table
-  if (!table_name) {
+    char *q = NULL;
+    if (querystring) {
+      char *q_start = strstr(querystring, "q=");
+      if (q_start) {
+        q_start += 2;
+        char *q_end = strchr(q_start, '&');
+        if (q_end) {
+          size_t q_len = q_end - q_start;
+          q = malloc(q_len + 1);
+          if (q) {
+            memcpy(q, q_start, q_len);
+            q[q_len] = '\0';
+          }
+        } else {
+          size_t q_len = strlen(q_start);
+          q = malloc(q_len + 1);
+          if (q) {
+            memcpy(q, q_start, q_len + 1);
+          }
+        }
+      }
+    }
+
+    handle_search(client_fd, &conn, database, search_table_name, q, &response,
+                  &response_len, cookie_header);
+    free(q);
+    goto end;
+  }
+
+  if (!url_segments[1]) {
     build_response(400, &response, &response_len, cookie_header,
                    "Table name not supplied.");
     goto end;
   }
-
+  table_name = url_segments[1];
   to_lower_snake_case(table_name);
 
   for (unsigned int i = 0; i < database->tables_count; i++) {

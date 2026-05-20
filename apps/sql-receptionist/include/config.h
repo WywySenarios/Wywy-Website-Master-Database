@@ -23,7 +23,8 @@ struct data_column {
   const char *datatype;  // @todo validation
   bool comments;         // optional, ?useless here?
   const char *entrytype; // useless here
-  const char *references;
+  char **references;
+  unsigned int references_count;
 };
 
 struct descriptor {

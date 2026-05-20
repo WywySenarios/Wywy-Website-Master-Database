@@ -102,7 +102,8 @@ void construct_select_query(struct select_options *options, char *buffer,
       cur_write_full_column_name(cur, remaining_size);
       cur_memcpy(cur, remaining_size, "_altitude_accuracy,");
     } else if (strcmp(options->schema[i].datatype, "polypointer") == 0 ||
-               strcmp(options->schema[i].datatype, "polymorphic pointer") == 0) {
+               strcmp(options->schema[i].datatype, "polymorphic pointer") ==
+                   0) {
       cur_write_full_column_name(cur, remaining_size);
       cur_append(cur, remaining_size, ',');
       cur_write_full_column_name(cur, remaining_size);
@@ -269,6 +270,7 @@ int serialize_select_result(const PGresult *res, char *buffer,
         n = strlen(PQgetvalue(res, row_num, col_num));
         switch (PQftype(res, col_num)) {
         case 25:
+        case 1043:
         case 1082:
         case 1083:
         case 1114:

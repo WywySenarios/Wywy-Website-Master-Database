@@ -237,26 +237,30 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
           return 0;
         }
 
-        // validate that the target table exists in the database
+        // validate that the target table is in the allowed references list
         const char *type_value = json_string_value(current_item);
         if (type_value) {
-          const char *check_query =
-              "SELECT EXISTS (SELECT FROM pg_tables WHERE tablename = $1)";
-          const char *check_params[1] = {type_value};
-          PGresult *table_check =
-              PQexecParams(conn, check_query, 1, NULL, check_params, NULL, NULL,
-                           0);
-          int table_exists = 0;
-          if (table_check &&
-              PQresultStatus(table_check) == PGRES_TUPLES_OK &&
-              PQntuples(table_check) == 1) {
-            table_exists =
-                strcmp(PQgetvalue(table_check, 0, 0), "t") == 0;
+          const struct data_column *col = &options->schema[i];
+          int found = 0;
+          for (unsigned int j = 0; j < col->references_count; j++) {
+            const char *ref = col->references[j];
+            char ref_buf[MAX_COLUMN_NAME_SIZE];
+            char val_buf[MAX_COLUMN_NAME_SIZE];
+            // bidirectional sanitization check:
+            // compare both raw and lower_snake_cased forms
+            if (strcmp(type_value, ref) == 0) { found = 1; break; }
+            snprintf(ref_buf, sizeof(ref_buf), "%s", ref);
+            to_lower_snake_case(ref_buf);
+            if (strcmp(type_value, ref_buf) == 0) { found = 1; break; }
+            snprintf(val_buf, sizeof(val_buf), "%s", type_value);
+            to_lower_snake_case(val_buf);
+            if (strcmp(val_buf, ref) == 0) { found = 1; break; }
+            if (strcmp(val_buf, ref_buf) == 0) { found = 1; break; }
           }
-          PQclear(table_check);
-          if (!table_exists) {
+          if (!found) {
             snprintf(error_buffer, ERROR_BUFFER_SIZE,
-                     "Validation error: target table \"%s\" does not exist.",
+                     "Validation error: target table \"%s\" is not in the "
+                     "allowed references list.",
                      type_value);
             return 0;
           }
