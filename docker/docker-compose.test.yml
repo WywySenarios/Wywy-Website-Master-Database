@@ -1,6 +1,10 @@
 name: master-database
 
 services:
+  create_tables:
+    environment:
+      SYNC_STATUS: true
+
   test:
     working_dir: /apps/tests
     build:

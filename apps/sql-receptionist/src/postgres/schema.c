@@ -140,9 +140,9 @@ int check_st_point(const json_t *json) {
     return -1;
   }
 
-  regmatch_t matches[3];
+  regmatch_t matches[5];
 
-  if (regexec(&preg, value, 3, matches, 0) == REG_NOMATCH) {
+  if (regexec(&preg, value, 5, matches, 0) == REG_NOMATCH) {
     regfree(&preg);
     return 0;
   }
@@ -150,7 +150,7 @@ int check_st_point(const json_t *json) {
   // check X coordinate value
   char *endptr = NULL;
   double x = strtod(value + matches[1].rm_so, &endptr);
-  double y = strtod(value + matches[2].rm_so, &endptr);
+  double y = strtod(value + matches[3].rm_so, &endptr);
 
   if (x < -180 || 180 < x) {
     regfree(&preg);
@@ -192,6 +192,11 @@ int validate_column(const json_t *item, struct data_column column_schema,
     } else if (strcmp(datatype, "enum") == 0) {
       // @todo
       output = json_is_string(item);
+    } else if (strcmp(datatype, "pointer") == 0) {
+      output = json_is_integer(item);
+    } else if (strcmp(datatype, "polypointer") == 0 ||
+               strcmp(datatype, "polymorphic pointer") == 0) {
+      output = json_is_integer(item);
     } else if (strcmp(datatype, "geodetic point") == 0) {
       output = check_st_point(item);
     } else {
@@ -317,5 +322,13 @@ int validate_column(const json_t *item, struct data_column column_schema,
       return 0;
     }
     return 1;
+  case POINTER_TYPE:
+    if (json_is_null(item))
+      return 1;
+
+    if (json_is_string(item)) {
+      return 1;
+    }
+    return 0;
   }
 }

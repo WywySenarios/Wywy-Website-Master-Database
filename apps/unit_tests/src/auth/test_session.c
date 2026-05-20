@@ -44,7 +44,7 @@ int test_session() {
   } else {
     puts("F: Valid user INSERT failed ((username, password_hash, access_level, "
          "tokens_remaining) VALUES ('bad_session_user', [password_hash], 0, "
-         "-10000)).");
+         "0)).");
   }
   PQclear(res);
 

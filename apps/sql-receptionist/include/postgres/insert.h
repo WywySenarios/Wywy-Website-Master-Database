@@ -40,6 +40,10 @@ struct insert_options {
    * Should not be NULL.
    */
   const char *duplicate_column_name;
+  /**
+   * @param database The database config containing the tables list.
+   */
+  struct db *database;
 };
 
 /**

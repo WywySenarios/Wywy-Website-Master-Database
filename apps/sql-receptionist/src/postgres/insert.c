@@ -222,6 +222,57 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
       }
     }
 
+    // enforce polypointer child columns
+    if (strcmp(options->schema[i].datatype, "polypointer") == 0 ||
+        strcmp(options->schema[i].datatype, "polymorphic pointer") == 0) {
+      write_and_access_child_column_name(
+          query_cur, query_remaining_size, query_cur_checkpoint,
+          options->schema[i].name, "_type");
+      if (current_item) {
+        if (!validate_column(current_item, options->schema[i], POINTER_TYPE)) {
+          snprintf(error_buffer, ERROR_BUFFER_SIZE,
+                   "Datatype mismatch: type sub-column of \"%s\" should be a "
+                   "string.",
+                   options->schema[i].name);
+          return 0;
+        }
+
+        // validate that the target table is in the allowed references list
+        const char *type_value = json_string_value(current_item);
+        if (type_value) {
+          const struct data_column *col = &options->schema[i];
+          int found = 0;
+          for (unsigned int j = 0; j < col->references_count; j++) {
+            const char *ref = col->references[j];
+            char ref_buf[MAX_COLUMN_NAME_SIZE];
+            char val_buf[MAX_COLUMN_NAME_SIZE];
+            // bidirectional sanitization check:
+            // compare both raw and lower_snake_cased forms
+            if (strcmp(type_value, ref) == 0) { found = 1; break; }
+            snprintf(ref_buf, sizeof(ref_buf), "%s", ref);
+            to_lower_snake_case(ref_buf);
+            if (strcmp(type_value, ref_buf) == 0) { found = 1; break; }
+            snprintf(val_buf, sizeof(val_buf), "%s", type_value);
+            to_lower_snake_case(val_buf);
+            if (strcmp(val_buf, ref) == 0) { found = 1; break; }
+            if (strcmp(val_buf, ref_buf) == 0) { found = 1; break; }
+          }
+          if (!found) {
+            snprintf(error_buffer, ERROR_BUFFER_SIZE,
+                     "Validation error: target table \"%s\" is not in the "
+                     "allowed references list.",
+                     type_value);
+            return 0;
+          }
+        }
+
+        write_placeholder_value();
+      } else {
+        revert_cur_checkpoint(query_cur, query_remaining_size,
+                              query_cur_checkpoint);
+      }
+    }
+
     // enforce columns (optional)
     if (options->schema[i].comments) {
       write_and_access_child_column_name(query_cur, query_remaining_size,
@@ -331,8 +382,18 @@ int validate_and_insert_into(struct insert_options *options, json_t *entry,
       cur_memcpy(query_cur, query_remaining_size,
                  "_altitude_accuracy = EXCLUDED.");
       cur_write_column_name(query_cur, query_remaining_size,
-                            options->schema[i].name);
+                             options->schema[i].name);
       cur_memcpy(query_cur, query_remaining_size, "_altitude_accuracy,");
+    }
+
+    if (strcmp(options->schema[i].datatype, "polypointer") == 0 ||
+        strcmp(options->schema[i].datatype, "polymorphic pointer") == 0) {
+      cur_write_column_name(query_cur, query_remaining_size,
+                             options->schema[i].name);
+      cur_memcpy(query_cur, query_remaining_size, "_type = EXCLUDED.");
+      cur_write_column_name(query_cur, query_remaining_size,
+                             options->schema[i].name);
+      cur_memcpy(query_cur, query_remaining_size, "_type,");
     }
 
     if (options->schema[i].comments) {

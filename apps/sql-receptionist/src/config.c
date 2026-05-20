@@ -10,6 +10,9 @@
 
 #define CONFIG_PATH "/config.yml"
 
+static const cyaml_schema_value_t cyaml_str_schema = {
+    CYAML_VALUE_STRING(CYAML_FLAG_POINTER, char, 0, CYAML_UNLIMITED)};
+
 static const cyaml_schema_field_t data_column_fields_schema[] = {
     CYAML_FIELD_STRING_PTR("name", CYAML_FLAG_POINTER, struct data_column, name,
                            0, CYAML_UNLIMITED),
@@ -22,6 +25,11 @@ static const cyaml_schema_field_t data_column_fields_schema[] = {
 
     CYAML_FIELD_STRING_PTR("entrytype", CYAML_FLAG_POINTER, struct data_column,
                            entrytype, 0, CYAML_UNLIMITED),
+
+    CYAML_FIELD_SEQUENCE("references",
+                         CYAML_FLAG_POINTER | CYAML_FLAG_OPTIONAL,
+                         struct data_column, references,
+                         &cyaml_str_schema, 0, CYAML_UNLIMITED),
     CYAML_FIELD_END};
 
 static const cyaml_schema_value_t data_column_schema = {

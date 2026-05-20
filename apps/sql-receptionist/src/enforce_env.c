@@ -19,5 +19,6 @@ void enforce_environment_variables() {
   check_env_var("CACHE_URL");
   check_env_var("AUTH_COOKIE_MAX_AGE");
   check_env_var("SQL_RECEPTIONIST_HOST");
+  check_env_var("SQL_RECEPTIONIST_SEARCH_LIMIT");
   check_env_var("USER_ID");
 }

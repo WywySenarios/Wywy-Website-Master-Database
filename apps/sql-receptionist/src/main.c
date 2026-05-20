@@ -17,6 +17,7 @@
 #include "logging.h"
 #include "postgres.h"
 #include "postgres/insert.h"
+#include "postgres/search.h"
 #include "postgres/select.h"
 #include "server/responses.h"
 #include "utils/format_string.h"
@@ -428,7 +429,6 @@ void *handle_client(void *arg) {
     } else {
       build_response_default(401, &response, &response_len);
     }
-    PQfinish(auth_conn);
     goto end;
   }
 
@@ -456,7 +456,6 @@ void *handle_client(void *arg) {
     } else {
       build_response_default(401, &response, &response_len);
     }
-    PQfinish(auth_conn);
     goto end;
   }
 
@@ -467,22 +466,18 @@ void *handle_client(void *arg) {
         "Failed to connect to info database for authentication purposes.");
     build_response(500, &response, &response_len, cookie_header,
                    "Something went wrong when authenticating.");
-    PQfinish(auth_conn);
     goto end;
   } else if (errno) {
     perror("auth db");
     build_response(500, &response, &response_len, cookie_header,
                    "Something went wrong when authenticating.");
-    PQfinish(auth_conn);
     goto end;
   } else if (!token_present) {
     build_response_default(401, &response, &response_len);
-    PQfinish(auth_conn);
     goto end;
   } else if (!validate_token(username, token, auth_conn)) {
     build_response(403, &response, &response_len, cookie_header,
                    "Authentication failed.");
-    PQfinish(auth_conn);
     goto end;
   } else {
     memcpy(write_cookie_header(cookie_header), token, sizeof(token) - 1);
@@ -519,15 +514,51 @@ void *handle_client(void *arg) {
     goto end;
   }
 
-  table_name = url_segments[1];
+  // check for search endpoint
+  if (url_segments[2] && strcmp(url_segments[2], "search") == 0) {
+    char *search_table_name = url_segments[1];
+    if (!search_table_name) {
+      build_response(400, &response, &response_len, cookie_header,
+                     "Table name not supplied.");
+      goto end;
+    }
+    to_lower_snake_case(search_table_name);
 
-  // ensure that there is a target table
-  if (!table_name) {
+    char *q = NULL;
+    if (querystring) {
+      char *q_start = strstr(querystring, "q=");
+      if (q_start) {
+        q_start += 2;
+        char *q_end = strchr(q_start, '&');
+        if (q_end) {
+          size_t q_len = q_end - q_start;
+          q = malloc(q_len + 1);
+          if (q) {
+            memcpy(q, q_start, q_len);
+            q[q_len] = '\0';
+          }
+        } else {
+          size_t q_len = strlen(q_start);
+          q = malloc(q_len + 1);
+          if (q) {
+            memcpy(q, q_start, q_len + 1);
+          }
+        }
+      }
+    }
+
+    handle_search(client_fd, &conn, database, search_table_name, q, &response,
+                  &response_len, cookie_header);
+    free(q);
+    goto end;
+  }
+
+  if (!url_segments[1]) {
     build_response(400, &response, &response_len, cookie_header,
                    "Table name not supplied.");
     goto end;
   }
-
+  table_name = url_segments[1];
   to_lower_snake_case(table_name);
 
   for (unsigned int i = 0; i < database->tables_count; i++) {
@@ -741,15 +772,15 @@ void *handle_client(void *arg) {
         } else if (strcmp(key, "parent_id") == 0) {
           switch (table_type) {
           case TAG_ALIASES_TABLE:;
-            options.filter_table_name = table_name;
+            // options.filter_table_name = table_name;
             options.filter_column_name = "tag_id";
             break;
           case TAGS_TABLE:
-            options.filter_table_name = table_name;
+            // options.filter_table_name = table_name;
             options.filter_column_name = "entry_id";
             break;
           case DESCRIPTORS_TABLE:
-            options.filter_table_name = table_name;
+            // options.filter_table_name = table_name;
             options.filter_column_name = "id";
             break;
           default:
@@ -845,7 +876,8 @@ void *handle_client(void *arg) {
         goto schema_mismatch_end;
       }
 
-      struct insert_options options = {table_name, NULL, -1, 0, "id", 0, "id"};
+      struct insert_options options = {table_name, NULL, -1,   0,
+                                       "id",       0,    "id", database};
       if (strcmp(target_type, "data") == 0) {
         // no additional checks needed
         options.schema = table->schema;
