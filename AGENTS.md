@@ -1,8 +1,8 @@
 # AGENTS.md — Wywy-Website-Master-Database
 
-## Writing plans
+## Implementation plans
 
-Write plans to [`internal/implementation-plans/`](../../../etc/Wywy-Website-Control/internal/implementation-plans/) in the control repo.
+Plans live in the control repo: [`internal/implementation-plans/`](../../../etc/Wywy-Website-Control/internal/implementation-plans/)
 
 ## This repo is part of a multi-service control system
 
