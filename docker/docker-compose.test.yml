@@ -26,13 +26,13 @@ services:
     volumes:
       - ./../apps/tests:/home/wywy
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
-     depends_on:
-       postgres:
-         condition: service_healthy
-       create_tables:
-         condition: service_completed_successfully
-       sql_receptionist:
-         condition: service_started
+    depends_on:
+      postgres:
+        condition: service_healthy
+      create_tables:
+        condition: service_completed_successfully
+      sql_receptionist:
+        condition: service_started
 
   unit_test:
     tty: true
@@ -72,6 +72,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      create_tables:
+        condition: service_completed_successfully
     command: bash -c "make clean && make && exec valgrind --leak-check=yes --show-leak-kinds=definite ./app"
 
   # @TODO secrets for db authentication
