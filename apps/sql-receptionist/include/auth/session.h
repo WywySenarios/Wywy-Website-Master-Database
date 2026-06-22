@@ -2,12 +2,13 @@
 #include <libpq-fe.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define TOKEN_LENGTH RANDOM_STRING_LENGTH + 1 + RANDOM_STRING_LENGTH
-// Set-Cookie session=; Max-Age: 34560000; HttpOnly; Path=/\r\n
+// Set-Cookie: session=; Max-Age: 34560000; Expires=Thu, 31 Dec 2076 12:00:00 GMT; HttpOnly; Path=/\r\n
 #define TOKEN_COOKIE_HEADER_MAX_LENGTH                                         \
   (sizeof("Set-Cookie: session=") + TOKEN_LENGTH +                             \
-   sizeof("; Max-Age: 34560000; HttpOnly; Path=/\r\n") - 2)
+   sizeof("; Max-Age: 34560000; Expires=Thu, 31 Dec 2076 12:00:00 GMT; HttpOnly; Path=/\r\n") - 2)
 #define COOKIE_HEADER_TOKEN_OFFSET (sizeof("Set-Cookie session=") - 1)
 
 /**
@@ -27,6 +28,18 @@ static inline char *write_cookie_header(char *cookie_header) {
   size_t max_age_len = strlen(max_age);
   memcpy(pos, max_age, max_age_len);
   pos += max_age_len;
+  memcpy(pos, "; Expires=", sizeof("; Expires=") - 1);
+  pos += sizeof("; Expires=") - 1;
+  time_t now = time(NULL);
+  time_t expiry = now + atol(max_age);
+  struct tm expiry_tm;
+  gmtime_r(&expiry, &expiry_tm);
+  char expires_str[64];
+  strftime(expires_str, sizeof(expires_str), "%a, %d %b %Y %H:%M:%S GMT",
+           &expiry_tm);
+  size_t expires_len = strlen(expires_str);
+  memcpy(pos, expires_str, expires_len);
+  pos += expires_len;
   memcpy(pos, "; HttpOnly; Path=/\r\n", sizeof("; HttpOnly; Path=/\r\n") - 1);
   pos += sizeof("; HttpOnly; Path=/\r\n") - 1;
   *pos = '\0';
