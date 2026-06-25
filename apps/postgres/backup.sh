@@ -7,6 +7,7 @@ if [[ -z "$1" ]]; then
   exit 1
 elif [[ -z "$2" ]]; then
   echo "Error: WAL_FILE not provided." >&2
+  exit 1
 fi
 
 WAL_PATH="$1"
