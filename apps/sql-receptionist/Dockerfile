@@ -16,7 +16,7 @@ RUN wget -O /tmp/libcyaml.tar.gz https://github.com/tlsa/libcyaml/archive/refs/t
 FROM gcc:15-trixie AS builder
 
 ARG USER_ID
-ARG LIBCYAML_VARIANT
+ARG LIBCYAML_VARIANT=release
 
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
@@ -47,6 +47,15 @@ RUN apt-get update && apt-get install -y \
     libyaml-dev \
     openssl \
     libargon2-dev
+
+# Download config.yml for CI (no runtime mount needed).
+# Falls back to runtime mount when network is unavailable (local dev).
+RUN wget -q https://raw.githubusercontent.com/WywySenarios/Wywy-Website-Control/main/config/config.yml -O /config.yml \
+    || echo "config.yml download skipped (will use runtime mount in local dev)"
+
+# Create log directory so CI works without a host mount.
+RUN mkdir -p /var/log/Wywy-Website/master-database && \
+    chown -R sql-receptionist:Wywy-Website /var/log/Wywy-Website
 
 WORKDIR /home/sql-receptionist
 

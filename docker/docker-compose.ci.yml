@@ -1,0 +1,83 @@
+name: master-database
+
+# CI override file.
+#
+# Replaces host-dependent env_file, volumes, and secrets with local
+# fixtures from config/ci/.  Config.yml is baked into Docker images at
+# build time via curl — no runtime mount needed.  Log directories are
+# created in the Dockerfiles with correct ownership.
+#
+# Compose variable substitution uses docker/.env (auto-loaded).
+
+services:
+  sql_receptionist:
+    build:
+      target: dev
+    command: bash -c "make clean && make && exec valgrind --leak-check=yes --show-leak-kinds=definite ./app"
+    # Healthcheck: wait until the app is listening on port 2523.
+    # The command compiles first so the start period covers `make`.
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/2523"]
+      interval: 2s
+      retries: 30
+      start_period: 60s
+    env_file:
+      - ../config/ci/.env
+      - ../config/ci/.env.dev
+      - ../config/ci/master-database/.env
+      - ../config/ci/master-database/.env.dev
+    secrets:
+      - admin
+    volumes: []
+
+  create_tables:
+    env_file:
+      - ../config/ci/.env
+      - ../config/ci/.env.dev
+      - ../config/ci/master-database/.env
+      - ../config/ci/master-database/.env.dev
+    secrets:
+      - admin
+    volumes: []
+
+  test:
+    depends_on:
+      sql_receptionist:
+        condition: service_healthy
+    env_file:
+      - ../config/ci/.env
+      - ../config/ci/.env.dev
+      - ../config/ci/master-database/.env
+      - ../config/ci/master-database/.env.dev
+    secrets:
+      - admin
+    volumes:
+      # Test code is mounted from the checkout — keep this mount.
+      - ./../apps/tests:/home/wywy
+
+  unit_test:
+    env_file:
+      - ../config/ci/.env
+      - ../config/ci/.env.dev
+      - ../config/ci/master-database/.env
+      - ../config/ci/master-database/.env.dev
+    secrets:
+      - admin
+    volumes: []
+
+  postgres:
+    env_file: []
+    secrets: []
+    volumes: []
+
+secrets:
+  admin:
+    file: ../config/ci/admin.txt
+  # Dummy SSH secrets — not used in CI (no backup / WAL archiving),
+  # but must exist as files because external: true is Swarm-only.
+  ssh_private_key:
+    file: ../config/ci/id_ed25519
+  ssh_public_key:
+    file: ../config/ci/id_ed25519.pub
+  ssh_backup_public_key:
+    file: ../config/ci/backup/ssh_host_ed25519_key.pub
