@@ -74,7 +74,7 @@ services:
         condition: service_healthy
       create_tables:
         condition: service_completed_successfully
-    command: bash -c "make clean && make && exec valgrind --leak-check=yes --show-leak-kinds=definite ./app"
+    command: bash -c "make clean && make && exec valgrind --leak-check=yes --show-leak-kinds=definite --error-exitcode=1 ./app"
 
   # @TODO secrets for db authentication
   postgres:
