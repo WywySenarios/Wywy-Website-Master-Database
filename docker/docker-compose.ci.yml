@@ -66,6 +66,13 @@ services:
     volumes: []
 
   postgres:
+    # Override the 5-minute healthcheck interval from base.yml with
+    # something that makes sense for CI — 15s to initdb + boot,
+    # then 1s probes.
+    healthcheck:
+      interval: 1s
+      start_period: 15s
+      retries: 5
     env_file: []
     secrets: []
     volumes: []
