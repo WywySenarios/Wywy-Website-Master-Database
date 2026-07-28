@@ -48,16 +48,6 @@ services:
         required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env.dev
         required: true
-    develop:
-      watch:
-        - action: sync+restart
-          path: ${UNIVERSAL_CONFIG_DIR}/config.yml
-          target: /apps/create_tables/config.yml
-          initial_sync: true
-        - action: sync+restart
-          path: ./../apps/create_tables
-          target: ./apps/create_tables
-          initial_sync: true
 
   test:
     working_dir: /apps/tests
