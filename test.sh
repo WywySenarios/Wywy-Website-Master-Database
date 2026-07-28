@@ -1,8 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-export SECRETS_DIR="${PWD}/config/ci"
-export UNIVERSAL_CONFIG_DIR="${PWD}/config/ci"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+
+export SECRETS_DIR="${SCRIPT_DIR}/config/ci"
+export UNIVERSAL_CONFIG_DIR="${SCRIPT_DIR}/config/ci"
 
 COMPOSE="docker compose \
   -f docker/docker-compose.base.yml \
