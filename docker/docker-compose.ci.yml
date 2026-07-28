@@ -17,7 +17,7 @@ services:
     # Healthcheck: wait until the app is listening on port 2523.
     # The command compiles first so the start period covers `make`.
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/2523"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/2523"]
       interval: 2s
       retries: 30
       start_period: 60s
