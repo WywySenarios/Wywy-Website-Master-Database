@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+export SECRETS_DIR="${PWD}/config/ci"
+export UNIVERSAL_CONFIG_DIR="${PWD}/config/ci"
+
 COMPOSE="docker compose \
   -f docker/docker-compose.base.yml \
   -f docker/docker-compose.test.yml"
