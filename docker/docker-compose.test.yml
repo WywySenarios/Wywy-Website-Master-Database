@@ -32,16 +32,6 @@ services:
         required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env.dev
         required: true
-    develop:
-      watch:
-        - action: sync+restart
-          path: ./../apps/sql-receptionist
-          target: /home/sql-receptionist
-          initial_sync: true
-        - action: sync+restart
-          path: ${UNIVERSAL_CONFIG_DIR}/config.yml
-          target: /config.yml
-          initial_sync: true
     networks:
       - wywy_website_master_database-sql_receptionist
       - default
