@@ -90,16 +90,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     shm_size: 128mb
-    secrets:
-      - ssh_private_key
-      - ssh_backup_public_key
+    # SSH secrets moved to docker-compose.prod.yml
 
 secrets:
   admin:
     file: ${SECRETS_DIR}/admin.txt
-  ssh_private_key:
-    file: ${SECRETS_DIR}/id_ed25519
-  ssh_public_key:
-    file: ${SECRETS_DIR}/id_ed25519.pub
-  ssh_backup_public_key:
-    file: ${SECRETS_DIR}/backup/ssh_host_ed25519_key.pub
+  # SSH secrets moved to docker-compose.prod.yml — not needed in dev/CI.

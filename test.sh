@@ -3,8 +3,7 @@ set -euo pipefail
 
 COMPOSE="docker compose \
   -f docker/docker-compose.base.yml \
-  -f docker/docker-compose.test.yml \
-  -f docker/docker-compose.ci.yml"
+  -f docker/docker-compose.test.yml"
 
 # Ensure cleanup runs on exit, even if interrupted.
 LOGS_PID=
