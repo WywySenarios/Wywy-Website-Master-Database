@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+cd "$SCRIPT_DIR"
 
 export SECRETS_DIR="${SCRIPT_DIR}/config/ci"
 export UNIVERSAL_CONFIG_DIR="${SCRIPT_DIR}/config/ci"
@@ -20,28 +21,12 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# Ensure bind-mount sources exist so Docker doesn't create them as
-# directories (which would shadow files baked into the image).
+# Config file must be pre-staged at config/ci/config.yml before running
+# this script — see internal/conventions/tech-stack/ci.mdx.
 #
-# config.yml:  downloaded from the control repo so the real schema is
-#              available for both the bind mount and test assertions.
-# Log dir:     created with world-writable permissions so the container
-#              user can write even though the host dir is owned by root.
-CONFIG_SRC=config/ci/config.yml
+# Log dir is created with world-writable permissions so the container
+# user can write even though the host dir is owned by root.
 LOG_DIR=/var/log/Wywy-Website/master-database
-
-if [ -d "$CONFIG_SRC" ]; then
-	# Docker may have created a directory at this path from a failed
-	# bind mount — remove it so curl can write a file.
-	rmdir "$CONFIG_SRC" 2>/dev/null || rm -f "$CONFIG_SRC"
-fi
-if [ ! -f "$CONFIG_SRC" ]; then
-	echo "==> Downloading config.yml ..."
-	mkdir -p "$(dirname "$CONFIG_SRC")"
-	curl -fsSL \
-		https://raw.githubusercontent.com/WywySenarios/Wywy-Website-Control/main/config/config.yml \
-		-o "$CONFIG_SRC"
-fi
 
 # Ensure the log directory exists and is world-writable so the
 # container's non-root user can write to it.  Use sudo when the
