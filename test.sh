@@ -53,7 +53,14 @@ fi
 chmod 777 "$LOG_DIR" 2>/dev/null || sudo chmod 777 "$LOG_DIR"
 
 # Start all services and wait for health checks.
-$COMPOSE up --detach --wait
+$COMPOSE up --detach --wait 2>&1 || {
+	rc=$?
+	echo ""
+	echo "============================================================"
+	$COMPOSE logs --no-color 2>&1 || true
+	echo "============================================================"
+	exit $rc
+}
 
 # Stream container logs in background for real-time CI visibility.
 $COMPOSE logs -f &
