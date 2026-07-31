@@ -21,21 +21,31 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# @TODO don't chmod 777
+
 # Config file must be pre-staged at config/ci/config.yml before running
 # this script — see internal/conventions/tech-stack/ci.mdx.
 #
-# Log dir is created with world-writable permissions so the container
-# user can write even though the host dir is owned by root.
-LOG_DIR=/var/log/Wywy-Website/master-database
+# Log dirs are created with group-writable permissions (setgid 2775) so
+# the container's non-root user (primary group GID 2523) can write to
+# them even though the dirs are owned by root.
+LOG_DIRS=(
+	/var/log/Wywy-Website
+	/var/log/Wywy-Website/master-database
+	/var/log/Wywy-Website/master-database/postgres
+	/var/log/Wywy-Website/create_tables
+)
 
-# Ensure the log directory exists and is world-writable so the
-# container's non-root user can write to it.  Use sudo when the
-# parent is owned by root (e.g. /var/log).
-if [ ! -d "$LOG_DIR" ]; then
-	mkdir -p "$LOG_DIR" 2>/dev/null || sudo mkdir -p "$LOG_DIR"
-fi
-# Always ensure world-writable (directory may pre-exist from Docker).
-chmod 777 "$LOG_DIR" 2>/dev/null || sudo chmod 777 "$LOG_DIR"
+# Ensure each log directory exists, is owned by root:group 2523, and is
+# group-writable with the setgid bit set so subdirectories inherit the
+# group.  Use sudo when the parent is owned by root (e.g. /var/log).
+# The numeric GID is used because the runner container has no named
+# 'Wywy-Website' group, but chown accepts the raw GID.
+for dir in "${LOG_DIRS[@]}"; do
+	mkdir -p "$dir" 2>/dev/null || sudo mkdir -p "$dir"
+	chown 0:2523 "$dir" 2>/dev/null || sudo chown 0:2523 "$dir"
+	chmod 2775 "$dir" 2>/dev/null || sudo chmod 2775 "$dir"
+done
 
 # Start all services and wait for health checks.
 $COMPOSE up --detach --wait 2>&1 || {
