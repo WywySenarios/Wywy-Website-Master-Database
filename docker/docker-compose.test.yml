@@ -1,9 +1,53 @@
 name: master-database
 
+# Testing and CI override file.
+#
+# Merged from docker-compose.test.yml + docker-compose.ci.yml (+ dev.yml).
+# Uses variable-based paths from docker/.env for both test and CI use.
+# In CI: UNIVERSAL_CONFIG_DIR=../config/ci resolves to repo root's config/ci.
+# In dev: UNIVERSAL_CONFIG_DIR points to the user's config directory.
+#
+# Config.yml is baked into Docker images at build time via curl in CI — no
+# runtime mount needed in CI.  In dev, config.yml is mounted from the host.
+# Log directories are created in the Dockerfiles with correct ownership.
+
 services:
+  sql_receptionist:
+    build:
+      target: dev
+      args:
+        LIBCYAML_VARIANT: debug
+    command: bash -c "make clean && make && exec valgrind --leak-check=yes --show-leak-kinds=definite ./app"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/2523"]
+      interval: 2s
+      retries: 30
+      start_period: 60s
+    env_file:
+      - path: ${UNIVERSAL_CONFIG_DIR}/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/.env.dev
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env.dev
+        required: true
+    networks:
+      - wywy_website_master_database-sql_receptionist
+      - default
+
   create_tables:
     environment:
       SYNC_STATUS: true
+    env_file:
+      - path: ${UNIVERSAL_CONFIG_DIR}/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/.env.dev
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
+        required: true
+      - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env.dev
+        required: true
 
   test:
     working_dir: /apps/tests
@@ -24,6 +68,7 @@ services:
     secrets:
       - admin
     volumes:
+      # Test code is mounted from the checkout — keep this mount.
       - ./../apps/tests:/home/wywy
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
     depends_on:
@@ -32,7 +77,7 @@ services:
       create_tables:
         condition: service_completed_successfully
       sql_receptionist:
-        condition: service_started
+        condition: service_healthy
 
   unit_test:
     tty: true
@@ -57,18 +102,6 @@ services:
     volumes:
       - ${UNIVERSAL_CONFIG_DIR}/config.yml:/config.yml
       - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/master-database
-    # develop:
-    #   watch:
-    #     - action: sync+restart
-    #       path: ./../apps/sql-receptionist
-    #       target: /home/sql-receptionist
-    #       initial_sync: true
-    #     - action: sync+restart
-    #       path: ./../apps/unit_tests
-    #       target: /home/sql-receptionist
-    #       initial_sync: true
-    #     - action: restart
-    #       path: ${UNIVERSAL_CONFIG_DIR}/config.yml
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,13 +112,25 @@ services:
   # @TODO secrets for db authentication
   postgres:
     restart: no
+    # Use the standard postgres entrypoint in test mode (skip custom entrypoint
+    # which requires host-mounted SSH secrets and config files with specific
+    # ownership that aren't available in CI or on all dev machines).
+    command: ["postgres"]
     environment:
       PGDATA: /tmp/postgres
-    volumes:
-      - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/postgresql.dev.conf:/etc/postgresql/postgresql.conf:ro
-      - ${UNIVERSAL_CONFIG_DIR}/master-database/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
-      - /var/log/Wywy-Website/master-database:/var/log/Wywy-Website/master-database
+    # Override the 5-minute healthcheck interval from base.yml with
+    # something that makes sense for CI — 15s to initdb + boot, then 1s probes.
+    healthcheck:
+      interval: 1s
+      start_period: 15s
+      retries: 5
+
+networks:
+  default: {}
+  wywy_website_master_database-sql_receptionist:
+    name: wywy_website_master_database-sql_receptionist
 
 secrets:
   admin:
     file: ${SECRETS_DIR}/admin.txt
+  # SSH secrets not needed in dev/CI — defined in docker-compose.prod.yml.
