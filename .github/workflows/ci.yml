@@ -14,5 +14,5 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Run integration tests
+      - name: Run tests
         run: ./test.sh
