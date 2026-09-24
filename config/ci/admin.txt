@@ -1,1 +1,1 @@
-ci-admin-password
+testtest
