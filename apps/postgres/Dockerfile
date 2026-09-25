@@ -28,6 +28,11 @@ RUN apt-get update && \
 COPY --chown=postgres:Wywy-Website /apps/postgres/backup.sh /backup.sh
 COPY --chown=postgres:Wywy-Website /apps/postgres/entrypoint.sh /home/postgres/entrypoint.sh
 
+# Bootstrap scripts run on first initdb under the STOCK entrypoint only
+# (test/CI use `command: ["postgres"]`); the custom entrypoint above ignores
+# them. Creates roles, databases, and extensions before Liquibase runs.
+COPY /apps/postgres/initdb.d/ /docker-entrypoint-initdb.d/
+
 CMD ["/home/postgres/entrypoint.sh"]
 
 # USER postgres

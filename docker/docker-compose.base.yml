@@ -26,22 +26,15 @@ services:
       postgres:
         condition: service_healthy
 
-  create_tables:
-    tty: true
+  db-migrate:
     build:
       context: ../
       dockerfile: apps/create_tables/Dockerfile
-      args:
-        CONFIG_PATH: ${UNIVERSAL_CONFIG_DIR}/config.yml
-        USER_ID: ${USER_ID}
     env_file:
       - path: ${UNIVERSAL_CONFIG_DIR}/.env
         required: true
       - path: ${UNIVERSAL_CONFIG_DIR}/master-database/.env
         required: true
-    volumes:
-      - ${UNIVERSAL_CONFIG_DIR}/config.yml:/home/create_tables/config.yml
-      - /var/log/Wywy-Website/create_tables:/var/log/Wywy-Website/create_tables
     secrets:
       - admin
     depends_on:

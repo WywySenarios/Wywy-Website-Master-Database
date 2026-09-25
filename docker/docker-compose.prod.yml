@@ -11,7 +11,7 @@ services:
       - postgres
     command: /home/sql-receptionist/app
 
-  create_tables:
+  db-migrate:
     networks:
       - postgres
 

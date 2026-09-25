@@ -36,9 +36,7 @@ services:
       - wywy_website_master_database-sql_receptionist
       - default
 
-  create_tables:
-    environment:
-      SYNC_STATUS: true
+  db-migrate:
     env_file:
       - path: ${UNIVERSAL_CONFIG_DIR}/.env
         required: true
@@ -74,7 +72,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      create_tables:
+      db-migrate:
         condition: service_completed_successfully
       sql_receptionist:
         condition: service_healthy
@@ -105,7 +103,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      create_tables:
+      db-migrate:
         condition: service_completed_successfully
     command: bash -c "make clean && make && exec valgrind --leak-check=yes --show-leak-kinds=definite --error-exitcode=1 ./app"
 

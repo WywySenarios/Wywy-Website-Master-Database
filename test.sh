@@ -33,7 +33,6 @@ LOG_DIRS=(
 	/var/log/Wywy-Website
 	/var/log/Wywy-Website/master-database
 	/var/log/Wywy-Website/master-database/postgres
-	/var/log/Wywy-Website/create_tables
 )
 
 # Ensure each log directory exists, is owned by root:group 2523, and is
@@ -46,6 +45,22 @@ for dir in "${LOG_DIRS[@]}"; do
 	chown 0:2523 "$dir" 2>/dev/null || sudo chown 0:2523 "$dir"
 	chmod 2775 "$dir" 2>/dev/null || sudo chmod 2775 "$dir"
 done
+
+# Fresh database: destroy volumes so the initdb.d bootstrap runs on next up.
+$COMPOSE down -v
+
+# Bring up postgres alone, then run the Liquibase migrations and seed the
+# admin user — before any service that depends on the schema starts.
+$COMPOSE up --wait postgres 2>&1 || {
+	rc=$?
+	echo ""
+	echo "============================================================"
+	$COMPOSE logs --no-color postgres 2>&1 || true
+	echo "============================================================"
+	exit $rc
+}
+$COMPOSE run --rm --no-deps db-migrate migrate
+$COMPOSE run --rm --no-deps db-migrate seed
 
 # Start all services and wait for health checks.
 $COMPOSE up --detach --wait 2>&1 || {
