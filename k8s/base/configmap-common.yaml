@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: master-database-common
+  labels:
+    app: master-database
+immutable: true
+data:
+  AUTH_COOKIE_MAX_AGE: "2592000"
+  MAIN_URL: "https://ericzhu.me"
+  CACHE_URL: "https://cache.ericzhu.me"
+  MAIN_DOMAIN: "ericzhu.me"
+  CACHE_DOMAIN: "cache.ericzhu.me"

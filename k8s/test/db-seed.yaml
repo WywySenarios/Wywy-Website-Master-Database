@@ -1,0 +1,45 @@
+# UPSERTs the admin user into info.users
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-seed
+  namespace: master-database-test
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      # The kubelet's default service-account token mounts at
+      # /var/run/secrets/kubernetes.io/serviceaccount — a symlink into /run —
+      # which collides with the master-db-admin volume at /run/secrets and
+      # fails container start. No pod in this namespace calls the k8s API.
+      automountServiceAccountToken: false
+      containers:
+        - name: db-seed
+          image: master-db/db-migrate:kind-test
+          args: ["seed"] # entrypoint mode selection
+          env:
+            - name: DATABASE_HOST
+              value: "postgres"
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: DATABASE_USERNAME
+              value: "wywy_app"
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-password
+                  key: password
+          # The admin secret mounts at /run/secrets/admin with 0444 so the runner (uid 1001) can read it.
+          volumeMounts:
+            - name: master-db-admin
+              mountPath: /run/secrets
+              readOnly: true
+      volumes:
+        - name: master-db-admin
+          secret:
+            secretName: master-db-admin
+            items:
+              - key: password
+                path: admin
+            defaultMode: 0444

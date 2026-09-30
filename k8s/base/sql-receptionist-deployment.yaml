@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sql-receptionist
+  labels:
+    app: sql-receptionist
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sql-receptionist
+  template:
+    metadata:
+      labels:
+        app: sql-receptionist
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: master-database
+          image: docker-registry.github-runner:5000/master-db/sql-receptionist:dev
+          imagePullPolicy: IfNotPresent
+          command: ["/home/sql-receptionist/app"]
+          envFrom:
+            - configMapRef:
+                name: master-database-common
+            - configMapRef:
+                name: master-database-service-config
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-password
+                  key: password
+          ports:
+            - name: http
+              containerPort: 2523
+          readinessProbe:
+            tcpSocket:
+              port: 2523
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 2523
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: config-files
+              mountPath: /config.yml
+              subPath: config.yml
+              readOnly: true
+      volumes:
+        - name: config-files
+          configMap:
+            name: config-files

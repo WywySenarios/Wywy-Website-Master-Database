@@ -1,0 +1,61 @@
+# integration tests with pytest against in-cluster sql-receptionist
+# constants.py must run after db migration thanks to a import time admin credential UPSERT
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: integration-test
+  namespace: master-database-test
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      # The kubelet's default service-account token mounts at
+      # /var/run/secrets/kubernetes.io/serviceaccount — a symlink into /run —
+      # which collides with the master-db-admin volume at /run/secrets and
+      # fails container start. No pod in this namespace calls the k8s API.
+      automountServiceAccountToken: false
+      containers:
+        - name: integration-test
+          image: master-db/tests:kind-test
+          envFrom:
+            - configMapRef:
+                name: master-database-common
+            - configMapRef:
+                name: master-database-service-config
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-password
+                  key: password
+          command:
+            [
+              "python3",
+              "-m",
+              "unittest",
+              "discover",
+              "-s",
+              "/home/wywy",
+              "-t",
+              "/home/wywy",
+            ]
+          volumeMounts:
+            - name: config-files
+              mountPath: /config.yml
+              subPath: config.yml
+              readOnly: true
+            - name: master-db-admin
+              mountPath: /run/secrets
+              readOnly: true
+      volumes:
+        - name: config-files
+          configMap:
+            name: config-files
+        - name: master-db-admin
+          secret:
+            secretName: master-db-admin
+            items:
+              - key: password
+                path: admin
+            defaultMode: 0444
