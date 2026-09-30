@@ -1,0 +1,77 @@
+# TEST-ONLY postgres for the KinD test overlay (dev & staging use the dedicated VM).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          # `args` starts the server via the stock entrypoint, overriding the
+          # image's custom default command (which skips the initdb.d bootstrap).
+          image: master-db/postgres:kind-test
+          args: ["postgres"]
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-password
+                  key: password
+            # initdb.d/01-bootstrap-roles-and-dbs.sh needs these to create
+            # wywy_migrator/wywy_app and the wywywebsite/info DBs pre-Liquibase.
+            - name: DATABASE_MIGRATOR_USERNAME
+              value: "wywy_migrator"
+            - name: DATABASE_MIGRATOR_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: migrator-password
+                  key: password
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-password
+                  key: password
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          # Pods have no writable-layer persistence; emptyDir survives a
+          # container restart without re-running initdb. Mounted at
+          # /var/lib/postgresql (not /var/lib/postgresql/data): postgres 18+
+          # images store data in a major-version subdirectory, and a mount on
+          # the old data path makes the image refuse to start.
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres

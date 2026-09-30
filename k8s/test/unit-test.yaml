@@ -1,0 +1,57 @@
+# C unit tests under valgrind
+
+# @TODO The auth/credential tests read /run/secrets/admin (test_creds.c:16,
+# test_login.c:18/85) and silently skip if it's missing while main.c still
+# exits 0, so the mount is mandatory.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: unit-test
+  namespace: master-database-test
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      # The kubelet's default service-account token mounts at
+      # /var/run/secrets/kubernetes.io/serviceaccount — a symlink into /run —
+      # which collides with the master-db-admin volume at /run/secrets and
+      # fails container start. No pod in this namespace calls the k8s API.
+      automountServiceAccountToken: false
+      containers:
+        - name: unit-test
+          image: master-db/unit-test:kind-test
+          envFrom:
+            - configMapRef:
+                name: master-database-common
+            - configMapRef:
+                name: master-database-service-config
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-password
+                  key: password
+          command:
+            - bash
+            - -c
+            - make clean && make && ulimit -n 1024 && exec valgrind --leak-check=yes --show-leak-kinds=definite --error-exitcode=1 ./app
+          volumeMounts:
+            - name: config-files
+              mountPath: /config.yml
+              subPath: config.yml
+              readOnly: true
+            - name: master-db-admin
+              mountPath: /run/secrets
+              readOnly: true
+      volumes:
+        - name: config-files
+          configMap:
+            name: config-files
+        - name: master-db-admin
+          secret:
+            secretName: master-db-admin
+            items:
+              - key: password
+                path: admin
+            defaultMode: 0444
