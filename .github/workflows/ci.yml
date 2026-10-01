@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    runs-on: [self-hosted, wywy, dind, kind]
+    runs-on: [self-hosted, wywy, kind]
     steps:
       - uses: actions/checkout@v4
         with:
