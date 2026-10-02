@@ -12,7 +12,7 @@ resources:
 images:
   # Full registry path is required (kustomize anchors ^+name); newName strips
   # it because KinD has no registry.
-  - name: docker-registry.github-runner:5000/master-db/sql-receptionist
+  - name: ghcr.io/wywysenarios/master-db/sql-receptionist
     newName: master-db/sql-receptionist
     newTag: kind-test
 

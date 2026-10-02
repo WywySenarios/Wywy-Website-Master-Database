@@ -8,9 +8,9 @@ resources:
 # Bootstrap pin: newTag must be a real :<sha> before first sync; Image
 # Updater rewrites it at runtime (write-back: argocd).
 images:
-  - name: docker-registry.github-runner:5000/master-db/sql-receptionist
+  - name: ghcr.io/wywysenarios/master-db/sql-receptionist
     newTag: dev
-  - name: docker-registry.github-runner:5000/master-db/create_tables
+  - name: ghcr.io/wywysenarios/master-db/create_tables
     newTag: dev
 
 patches:
