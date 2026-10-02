@@ -1,1 +1,18 @@
-/etc/Wywy-Website-Control/opencode.jsonc
+// DRIFT POTENTIAL: this file's contents is shared with other repos but no mechanism is in place to prevent drift.
+
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["/etc/Wywy-Website-Control/AGENTS.shared.md"],
+  "permission": {
+    "external_directory": {
+      "/etc/Wywy-Website-Control/**": "allow"
+    }
+  },
+  "mcp": {
+    "wywy-docs": {
+      "type": "remote",
+      "url": "http://127.0.0.1:2530/sse",
+      "description": "Coding conventions and documentation."
+    }
+  }
+}
