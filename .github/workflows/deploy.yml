@@ -4,6 +4,9 @@ on:
   push:
     branches: [dev-k8s]
 
+permissions:
+  packages: write
+
 jobs:
   build-push:
     runs-on: [self-hosted, wywy, dind]
@@ -12,27 +15,24 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Login to in-cluster registry
-        env:
-          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+      - name: Login to ghcr.io
         run: |
-          echo "$REGISTRY_PASSWORD" | docker login docker-registry.github-runner:5000 \
-            -u "$REGISTRY_USERNAME" --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            -u "${{ github.actor }}" --password-stdin
 
       - name: Build and push sql-receptionist image
         run: |
           docker build \
             --target prod \
             --build-arg USER_ID=25231 \
-            -t docker-registry.github-runner:5000/master-db/sql-receptionist:dev \
+            -t ghcr.io/wywysenarios/master-db/sql-receptionist:dev \
             -f apps/sql-receptionist/Dockerfile .
-          docker push docker-registry.github-runner:5000/master-db/sql-receptionist:dev
+          docker push ghcr.io/wywysenarios/master-db/sql-receptionist:dev
 
       - name: Build and push create_tables image
         run: |
           docker build \
             --build-arg USER_ID=25231 \
-            -t docker-registry.github-runner:5000/master-db/create_tables:dev \
+            -t ghcr.io/wywysenarios/master-db/create_tables:dev \
             -f apps/create_tables/Dockerfile .
-          docker push docker-registry.github-runner:5000/master-db/create_tables:dev
+          docker push ghcr.io/wywysenarios/master-db/create_tables:dev

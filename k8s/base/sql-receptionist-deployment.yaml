@@ -14,11 +14,9 @@ spec:
       labels:
         app: sql-receptionist
     spec:
-      imagePullSecrets:
-        - name: regcred
       containers:
         - name: master-database
-          image: docker-registry.github-runner:5000/master-db/sql-receptionist:dev
+          image: ghcr.io/wywysenarios/master-db/sql-receptionist:dev
           imagePullPolicy: IfNotPresent
           command: ["/home/sql-receptionist/app"]
           envFrom:
