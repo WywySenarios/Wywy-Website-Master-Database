@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [dev-k8s]
+    branches: [dev]
 
 permissions:
   packages: write
