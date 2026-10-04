@@ -44,11 +44,11 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 20
           volumeMounts:
-            - name: config-files
+            - name: wywy-config
               mountPath: /config.yml
-              subPath: config.yml
+              subPath: wywy.yml
               readOnly: true
       volumes:
-        - name: config-files
+        - name: wywy-config
           configMap:
-            name: config-files
+            name: wywy-config

@@ -7,3 +7,6 @@
 [submodule "apps/tests/wywy_website_types"]
 	path = apps/tests/wywy_website_types
 	url = https://github.com/WywySenarios/Wywy-Website-Python-Types
+[submodule "wywy-config"]
+	path = wywy-config
+	url = https://github.com/WywySenarios/wywy-config.git
