@@ -38,20 +38,20 @@ spec:
               "-s",
               "/home/wywy",
               "-t",
-              "/home/wywy",
+              "/home/wywy"
             ]
           volumeMounts:
-            - name: config-files
+            - name: wywy-config
               mountPath: /config.yml
-              subPath: config.yml
+              subPath: wywy.yml
               readOnly: true
             - name: master-db-admin
               mountPath: /run/secrets
               readOnly: true
       volumes:
-        - name: config-files
+        - name: wywy-config
           configMap:
-            name: config-files
+            name: wywy-config
         - name: master-db-admin
           secret:
             secretName: master-db-admin

@@ -32,8 +32,8 @@ command -v jq >/dev/null 2>&1 || {
 	echo "jq not found — install jq (required for structural job assertions)" >&2
 	exit 1
 }
-[[ -f config/ci/config.yml ]] || {
-	echo "config/ci/config.yml not staged — see internal/conventions/tech-stack/ci.mdx" >&2
+[[ -f wywy-config/wywy.yml ]] || {
+	echo "wywy-config/wywy.yml is missing" >&2
 	exit 1
 }
 
@@ -98,9 +98,9 @@ kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -
 info "Building and loading images"
 scripts/build-images.sh
 
-info "Creating config-files ConfigMap from config/ci/config.yml"
-kubectl create configmap config-files \
-	--from-file=config.yml="config/ci/config.yml" \
+info "Creating wywy-config ConfigMap from the wywy-config submodule"
+kubectl create configmap wywy-config \
+	--from-file=wywy.yml="wywy-config/wywy.yml" \
 	-n "$NAMESPACE" \
 	--dry-run=client -o yaml | kubectl apply -f -
 

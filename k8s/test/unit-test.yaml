@@ -37,17 +37,17 @@ spec:
             - -c
             - make clean && make && ulimit -n 1024 && exec valgrind --leak-check=yes --show-leak-kinds=definite --error-exitcode=1 ./app
           volumeMounts:
-            - name: config-files
+            - name: wywy-config
               mountPath: /config.yml
-              subPath: config.yml
+              subPath: wywy.yml
               readOnly: true
             - name: master-db-admin
               mountPath: /run/secrets
               readOnly: true
       volumes:
-        - name: config-files
+        - name: wywy-config
           configMap:
-            name: config-files
+            name: wywy-config
         - name: master-db-admin
           secret:
             secretName: master-db-admin
