@@ -7,3 +7,4 @@ resources:
   - configmap-service.yaml
   - sql-receptionist-deployment.yaml
   - service.yaml
+  - db-setup.yaml

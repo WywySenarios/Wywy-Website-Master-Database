@@ -1,0 +1,71 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-setup
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  # Migrations may start before postgres is accepting connections; the Job
+  # controller restarts the pod until the dependency is up.
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: Never
+      # The kubelet's default service-account token mounts at
+      # /var/run/secrets/kubernetes.io/serviceaccount (a symlink into /run).
+      # We avoid collision with the master-db-admin volume at /run/secrets
+      # No pod here calls the k8s API.
+      automountServiceAccountToken: false
+      initContainers:
+        - name: db-migrate
+          image: ghcr.io/wywysenarios/master-db/db-migrate:dev
+          imagePullPolicy: IfNotPresent
+          args: ["migrate"]
+          env:
+            - name: DATABASE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: master-database-service-config
+                  key: DATABASE_HOST
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: DATABASE_MIGRATOR_USERNAME
+              value: "wywy_migrator"
+            - name: DATABASE_MIGRATOR_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: migrator-password
+                  key: password
+      containers:
+        - name: db-seed
+          image: ghcr.io/wywysenarios/master-db/db-migrate:dev
+          imagePullPolicy: IfNotPresent
+          args: ["seed"]
+          env:
+            - name: DATABASE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: master-database-service-config
+                  key: DATABASE_HOST
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: DATABASE_USERNAME
+              value: "wywy_app"
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-password
+                  key: password
+          volumeMounts:
+            - name: master-db-admin
+              mountPath: /run/secrets
+              readOnly: true
+      volumes:
+        - name: master-db-admin
+          secret:
+            secretName: master-db-admin
+            items:
+              - key: password
+                path: admin
+            defaultMode: 0444
