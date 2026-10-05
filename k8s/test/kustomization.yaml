@@ -15,6 +15,9 @@ images:
   - name: ghcr.io/wywysenarios/master-db/sql-receptionist
     newName: master-db/sql-receptionist
     newTag: kind-test
+  - name: ghcr.io/wywysenarios/master-db/db-migrate
+    newName: master-db/db-migrate
+    newTag: kind-test
 
 patches:
   - target:

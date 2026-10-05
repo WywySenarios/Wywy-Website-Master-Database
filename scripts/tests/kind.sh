@@ -59,7 +59,7 @@ dump_diagnostics() {
 	echo "==> Dumping diagnostics before cluster teardown"
 	echo "============================================================"
 	kubectl -n "$NAMESPACE" get pods -o wide 2>&1 || true
-	for obj in deployment/postgres deployment/sql-receptionist job/db-migrate job/db-seed job/integration-test job/unit-test; do
+	for obj in deployment/postgres deployment/sql-receptionist job/db-setup job/integration-test job/unit-test; do
 		echo ""
 		echo "--- $obj logs ---"
 		kubectl -n "$NAMESPACE" logs "$obj" --tail=200 2>&1 || true
@@ -117,19 +117,10 @@ if ! kubectl -n "$NAMESPACE" rollout status deployment/postgres --timeout=300s; 
 	err "postgres rollout failed"
 fi
 
-info "Applying db-migrate Job and waiting for completion"
-kubectl apply -f k8s/test/db-migrate.yaml
-if ! kubectl -n "$NAMESPACE" wait --for=condition=complete job/db-migrate --timeout=300s; then
+info "Waiting for db-setup Job (migrate + seed) to complete"
+if ! kubectl -n "$NAMESPACE" wait --for=condition=complete job/db-setup --timeout=600s; then
 	FAILED=1
-	err "db-migrate did not complete"
-fi
-
-# seed values after schema migration
-info "Applying db-seed Job and waiting for completion"
-kubectl apply -f k8s/test/db-seed.yaml
-if ! kubectl -n "$NAMESPACE" wait --for=condition=complete job/db-seed --timeout=120s; then
-	FAILED=1
-	err "db-seed did not complete"
+	err "db-setup did not complete"
 fi
 
 info "Waiting for sql-receptionist rollout (valgrind startup is slow)"
@@ -158,7 +149,7 @@ run_test_job unit-test
 
 # ---- aggregate ---------------------------
 
-for job in db-migrate db-seed integration-test unit-test; do
+for job in db-setup integration-test unit-test; do
 	if ! kubectl -n "$NAMESPACE" get job "$job" -o json |
 		jq -e '.status.conditions[] | select(.type=="Complete") | .status == "True"' >/dev/null; then
 		echo "==> ERROR: job $job is not Complete" >&2
