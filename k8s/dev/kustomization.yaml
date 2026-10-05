@@ -10,7 +10,7 @@ resources:
 images:
   - name: ghcr.io/wywysenarios/master-db/sql-receptionist
     newTag: dev
-  - name: ghcr.io/wywysenarios/master-db/create_tables
+  - name: ghcr.io/wywysenarios/master-db/db-migrate
     newTag: dev
 
 patches:
