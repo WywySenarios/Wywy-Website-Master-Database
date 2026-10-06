@@ -30,7 +30,7 @@ spec:
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-password
+                  name: app-password
                   key: password
           command:
             - bash
