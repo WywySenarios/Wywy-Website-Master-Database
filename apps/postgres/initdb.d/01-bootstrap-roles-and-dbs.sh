@@ -6,7 +6,7 @@
 # `command: ["postgres"]`). The custom apps/postgres/entrypoint.sh (dev/prod)
 # does NOT run these scripts.
 #
-# Required env (from config/ci/master-database/.env):
+# Required environment variables:
 #   DATABASE_MIGRATOR_USERNAME / DATABASE_MIGRATOR_PASSWORD
 #   DATABASE_PASSWORD
 #
