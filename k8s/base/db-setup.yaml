@@ -31,7 +31,7 @@ spec:
             - name: DATABASE_PORT
               value: "5432"
             - name: DATABASE_MIGRATOR_USERNAME
-              value: "wywy_migrator"
+              value: "master_db_migrator"
             - name: DATABASE_MIGRATOR_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -51,7 +51,7 @@ spec:
             - name: DATABASE_PORT
               value: "5432"
             - name: DATABASE_USERNAME
-              value: "wywy_app"
+              value: "master_db_app"
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:

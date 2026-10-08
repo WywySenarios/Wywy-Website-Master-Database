@@ -27,10 +27,10 @@ spec:
                 secretKeyRef:
                   name: postgres-password
                   key: password
-            # initdb.d/01-bootstrap-roles-and-dbs.sh needs these to create
-            # wywy_migrator/wywy_app and the wywywebsite/info DBs pre-Liquibase.
+            # init.sh needs these to create
+            # master_db_migrator/master_db_app and the wywywebsite/info DBs pre-Liquibase.
             - name: DATABASE_MIGRATOR_USERNAME
-              value: "wywy_migrator"
+              value: "master_db_migrator"
             - name: DATABASE_MIGRATOR_PASSWORD
               valueFrom:
                 secretKeyRef:

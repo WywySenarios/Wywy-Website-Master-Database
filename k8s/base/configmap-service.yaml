@@ -11,7 +11,7 @@ data:
   SYNC_STATUS: "true"
   DATABASE_HOST: "db.internal"
   DATABASE_PORT: "5432"
-  DATABASE_USERNAME: "wywy_app"
+  DATABASE_USERNAME: "master_db_app"
   # SQL receptionist verbosity
   SQL_RECEPTIONIST_LOG_QUERIES: "TRUE"
   SQL_RECEPTIONIST_LOG_INPUT: "TRUE"
