@@ -4,7 +4,6 @@ metadata:
   name: master-database-service-config
   labels:
     app: master-database
-immutable: true
 data:
   SQL_RECEPTIONIST_HOST: "sql-receptionist"
   USER_ID: "25231"
