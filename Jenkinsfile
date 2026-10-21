@@ -13,7 +13,7 @@ pipeline {
 
   stages {
     stage('betterleaks') {
-      agent { label 'generic' }
+      agent { label 'betterleaks' }
       steps {
         withChecks('betterleaks') {
           // `dir` scans the checkout. `git` would also scan history, where a
