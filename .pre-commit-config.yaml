@@ -1,0 +1,10 @@
+repos:
+  - repo: https://github.com/betterleaks/betterleaks
+    rev: v1.9.0
+    hooks:
+      - id: betterleaks
+        stages: [pre-commit]
+      - id: betterleaks
+        name: betterleaks (push)
+        entry: betterleaks dir . --redact --no-banner --verbose
+        stages: [pre-push]
