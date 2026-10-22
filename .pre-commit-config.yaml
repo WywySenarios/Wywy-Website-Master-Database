@@ -1,9 +1,3 @@
-# Pre-commit hooks for Wywy-Website-Master-Database.
-#
-# Install once per clone (both hook types):
-#   pre-commit install --hook-type pre-commit --hook-type pre-push
-# Run against everything:
-#   pre-commit run --all-files
 repos:
   - repo: https://github.com/betterleaks/betterleaks
     rev: v1.9.0
