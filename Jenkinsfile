@@ -44,10 +44,7 @@ pipeline {
 
     stage('test (main)') {
       when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
+        changeRequest target: 'main'
       }
       agent { label 'dind' }
       steps {
@@ -59,7 +56,12 @@ pipeline {
     }
 
     stage('build-push') {
-      when { branch 'dev' }
+      when {
+        anyOf {
+          branch 'dev'
+          branch 'main'
+        }
+      }
       agent { label 'dind' }
       steps {
         withChecks('build-push') {
@@ -75,6 +77,10 @@ pipeline {
 
               git submodule update --init --recursive
               SHA="$(git rev-parse HEAD)"
+              TAG=dev
+              if [ "$BRANCH_NAME" = "main" ]; then
+                TAG=prod
+              fi
 
               printf '%s' "$REGISTRY_PASSWORD" |
                 docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
@@ -82,19 +88,19 @@ pipeline {
               docker build \
                 --target prod \
                 --build-arg USER_ID=25231 \
-                -t "$IMAGE_PREFIX/sql-receptionist:dev" \
+                -t "$IMAGE_PREFIX/sql-receptionist:$TAG" \
                 -t "$IMAGE_PREFIX/sql-receptionist:$SHA" \
                 -f apps/sql-receptionist/Dockerfile .
 
               docker build \
                 --build-arg USER_ID=25231 \
-                -t "$IMAGE_PREFIX/db-migrate:dev" \
+                -t "$IMAGE_PREFIX/db-migrate:$TAG" \
                 -t "$IMAGE_PREFIX/db-migrate:$SHA" \
                 -f apps/create_tables/Dockerfile .
 
-              docker push "$IMAGE_PREFIX/sql-receptionist:dev"
+              docker push "$IMAGE_PREFIX/sql-receptionist:$TAG"
               docker push "$IMAGE_PREFIX/sql-receptionist:$SHA"
-              docker push "$IMAGE_PREFIX/db-migrate:dev"
+              docker push "$IMAGE_PREFIX/db-migrate:$TAG"
               docker push "$IMAGE_PREFIX/db-migrate:$SHA"
             '''
           }
